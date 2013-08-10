@@ -1,3 +1,5 @@
+/*
+Test for FileSystem from Hadoop codebase
 package tj.fs;
 
 import java.io.DataInputStream;
@@ -654,3 +656,4 @@ public class TestFileSystem extends TestCase {
         }
     }
 }
+*/
