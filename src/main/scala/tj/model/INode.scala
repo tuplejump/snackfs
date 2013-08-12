@@ -52,7 +52,9 @@ case class INode(user: String, group: String, permission: FsPermission,
     outputStream.close()
     ByteBuffer.wrap(byteStream.toByteArray)
   }
+}
 
+object INode {
   def deserilize(inputStream: InputStream, timestamp: Long): INode = {
     var result: INode = null
     if (inputStream != null) {
