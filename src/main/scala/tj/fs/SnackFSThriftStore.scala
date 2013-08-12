@@ -25,12 +25,13 @@ import java.io.InputStream
 
 class SnackFSThriftStore(client: AsyncClient) extends SnackFSStore {
 
+
   private val pathCol: ByteBuffer = ByteBufferUtil.bytes("path")
   private val parentPathCol: ByteBuffer = ByteBufferUtil.bytes("parent_path")
   private val sentCol: ByteBuffer = ByteBufferUtil.bytes("sentinel")
   private val sentinelValue: ByteBuffer = ByteBufferUtil.bytes("x")
   private val dataCol: ByteBuffer = ByteBufferUtil.bytes("data")
-  private val consistencyLevelWrite = ConsistencyLevel.LOCAL_QUORUM
+  private val consistencyLevelWrite = ConsistencyLevel.QUORUM
   private val consistencyLevelRead = ConsistencyLevel.QUORUM
 
   def createKeyspace(ksDef: KsDef): Future[Keyspace] = {
@@ -40,7 +41,7 @@ class SnackFSThriftStore(client: AsyncClient) extends SnackFSStore {
     ksDefFuture onSuccess {
       case p => {
 
-        val mayBeKsDef: Try[KsDef] = Try(p.getResult())
+        val mayBeKsDef: Try[KsDef] = Try(p.getResult)
 
         if (mayBeKsDef.isSuccess) {
           prom failure new KeyspaceAlreadyExistsException("%s keyspace already exists".format(ksDef.getName))
@@ -50,7 +51,7 @@ class SnackFSThriftStore(client: AsyncClient) extends SnackFSStore {
             client.system_add_keyspace(ksDef, _))
 
           response.onSuccess {
-            case r => prom success new Keyspace(r.getResult())
+            case r => prom success new Keyspace(r.getResult)
           }
 
           response.onFailure {
@@ -161,41 +162,47 @@ class SnackFSThriftStore(client: AsyncClient) extends SnackFSStore {
     mutationMap
   }
 
-  def saveINode(path: Path, iNode: INode): GenericOpSuccess = {
+  def storeINode(path: Path, iNode: INode): Future[GenericOpSuccess] = {
     val data: ByteBuffer = iNode.serialize
     val mutationMap: Map[ByteBuffer, java.util.Map[String, java.util.List[Mutation]]] = generateMutationforINode(data, path)
     val iNodeFuture = AsyncUtil.executeAsync[batch_mutate_call](client.batch_mutate(mutationMap, consistencyLevelWrite, _))
-    var result: GenericOpSuccess = null
+    val prom = promise[GenericOpSuccess]
     iNodeFuture.onSuccess {
-      case p => result = GenericOpSuccess()
+      case p => {
+        prom success GenericOpSuccess()
+      }
     }
-    result
+    iNodeFuture.onFailure {
+      case f => prom failure f
+    }
+    prom.future
   }
 
-  def performGet(key: ByteBuffer, columnPath: ColumnPath, consistency: ConsistencyLevel): ColumnOrSuperColumn = {
+  def performGet(key: ByteBuffer, columnPath: ColumnPath, consistency: ConsistencyLevel): Future[ColumnOrSuperColumn] = {
+    val prom = promise[ColumnOrSuperColumn]
     val getFuture = AsyncUtil.executeAsync[get_call](client.get(key, columnPath, consistency, _))
-    var result: ColumnOrSuperColumn = null
     getFuture.onSuccess {
-      case p => result = p.getResult
+      case p => prom success p.getResult
     }
-    result
+    getFuture.onFailure {
+      case f => prom failure f
+    }
+    prom.future
   }
 
-  def retrieveINode(path: Path): INode = {
+  def retrieveINode(path: Path): Future[INode] = {
     val pathKey: ByteBuffer = getPathKey(path)
     val inodeDataPath = new ColumnPath("inode").setColumn(dataCol)
 
+    val inodePromise = promise[INode]
     val pathInfo = performGet(pathKey, inodeDataPath, consistencyLevelRead)
-
-    /*  // If not found and I already tried with CL= ONE, retry with higher CL.
-      if (pathInfo == null && (consistencyLevelRead == ConsistencyLevel.ONE)) {
-        pathInfo = performGet(pathKey, inodeDataPath, ConsistencyLevel.QUORUM)
-      }*/
-
-    if (pathInfo == null) {
-      return null
+    pathInfo.onSuccess {
+      case p => inodePromise success INode.deserialize(ByteBufferUtil.inputStream(p.column.value), p.column.getTimestamp)
     }
-    INode.deserilize(ByteBufferUtil.inputStream(pathInfo.column.value), pathInfo.column.getTimestamp)
+    pathInfo.onFailure {
+      case f => inodePromise failure f
+    }
+    inodePromise.future
   }
 
   private def compressData(data: ByteBuffer): ByteBuffer = {
@@ -212,32 +219,65 @@ class SnackFSThriftStore(client: AsyncClient) extends SnackFSStore {
     compressedData
   }
 
-  def saveSubBlock(blockId: UUID, subBlockMeta: SubBlockMeta, data: ByteBuffer): GenericOpSuccess = {
+  def storeSubBlock(blockId: UUID, subBlockMeta: SubBlockMeta, data: ByteBuffer): Future[GenericOpSuccess] = {
     val parentBlockId: ByteBuffer = ByteBufferUtil.bytes(blockId)
 
-    val compressedData = compressData(data)
+    //    val compressedData = compressData(data)
 
     val sblockParent = new ColumnParent("sblock")
 
     val column = new Column()
       .setName(ByteBufferUtil.bytes(subBlockMeta.id))
-      .setValue(compressedData)
+      .setValue(data)
       .setTimestamp(System.currentTimeMillis)
 
+    val prom = promise[GenericOpSuccess]
     val subBlockFuture = AsyncUtil.executeAsync[insert_call](
       client.insert(parentBlockId, sblockParent, column, consistencyLevelWrite, _))
 
-    var result: GenericOpSuccess = null
     subBlockFuture.onSuccess {
-      case p => result = GenericOpSuccess()
+      case p => prom success GenericOpSuccess()
     }
-    result
+    subBlockFuture.onFailure {
+      case f => prom failure f
+    }
+    prom.future
   }
 
-  def retrieveSubBlock(blockMeta: BlockMeta, subBlockMeta: SubBlockMeta, byteRangeStart: Long): InputStream= {
-    val blockId:ByteBuffer = ByteBufferUtil.bytes(blockMeta.id)
-    val subBlockId = ByteBufferUtil.bytes (subBlockMeta.id)
-    val subBlock = performGet(subBlockId,new ColumnPath("sblock").setColumn(blockId),consistencyLevelRead)
-    ByteBufferUtil.inputStream(subBlock.column.value)
+  def retrieveSubBlock(blockMeta: BlockMeta, subBlockMeta: SubBlockMeta, byteRangeStart: Long): Future[InputStream] = {
+    val blockId: ByteBuffer = ByteBufferUtil.bytes(blockMeta.id)
+    val subBlockId = ByteBufferUtil.bytes(subBlockMeta.id)
+    val subBlockFuture = performGet(subBlockId, new ColumnPath("sblock").setColumn(blockId), consistencyLevelRead)
+    val prom = promise[InputStream]
+    subBlockFuture.onSuccess {
+      case p => prom success ByteBufferUtil.inputStream(p.column.value)
+    }
+    subBlockFuture.onFailure {
+      case f => prom failure f
+    }
+    prom.future
   }
+
+  def storeSubBlockAndUpdateINode(path: Path, iNode: INode, block: BlockMeta, subBlockMeta: SubBlockMeta, data: ByteBuffer): Future[GenericOpSuccess] = {
+    val subBLockResponse = storeSubBlock(block.id, subBlockMeta, data)
+    val prom = promise[GenericOpSuccess]
+    subBLockResponse.onSuccess {
+      case res => {
+        val timestamp = System.currentTimeMillis()
+        val updatedSubBlockMetaList = block.subBlocks ++ List(subBlockMeta)
+        val otherBlocks = iNode.blocks.filter(b => b.id != block.id)
+        val updatedBlockMeta = BlockMeta(block.id, block.offset, block.length + data.array().length, updatedSubBlockMetaList)
+        val updatedINode = INode(iNode.user, iNode.group, iNode.permission, iNode.fileType, otherBlocks ++ List(updatedBlockMeta), timestamp)
+        val storeReq = storeINode(path, updatedINode)
+        storeReq.onSuccess {
+          case p => prom success p
+        }
+        storeReq.onFailure {
+          case f => prom failure f
+        }
+      }
+    }
+    prom.future
+  }
+
 }

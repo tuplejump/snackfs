@@ -15,11 +15,14 @@ trait SnackFSStore {
 
   def createKeyspace(ksDef: KsDef): Future[Keyspace]
 
-  def saveINode(path: Path, iNode: INode): GenericOpSuccess
+  def storeINode(path: Path, iNode: INode): Future[GenericOpSuccess]
 
-  def retrieveINode(path: Path): INode
+  def retrieveINode(path: Path): Future[INode]
 
-  def saveSubBlock(blockId: UUID, subBlockMeta: SubBlockMeta, data: ByteBuffer): GenericOpSuccess
+  def storeSubBlock(blockId: UUID, subBlockMeta: SubBlockMeta, data: ByteBuffer): Future[GenericOpSuccess]
 
-  def retrieveSubBlock(blockMeta: BlockMeta, subBlockMeta: SubBlockMeta, byteRangeStart: Long):InputStream
+  def retrieveSubBlock(blockMeta: BlockMeta, subBlockMeta: SubBlockMeta, byteRangeStart: Long):Future[InputStream]
+
+  def storeSubBlockAndUpdateINode(path: Path, iNode: INode,block:BlockMeta,subBlockMeta: SubBlockMeta, data: ByteBuffer): Future[GenericOpSuccess]
+
 }

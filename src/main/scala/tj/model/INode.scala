@@ -28,7 +28,6 @@ case class INode(user: String, group: String, permission: FsPermission,
     outputStream.writeBytes(group)
     outputStream.writeShort(permission.toShort)
     outputStream.writeByte(fileType.id)
-
     if (isFile) {
 
       //Write Blocks
@@ -55,7 +54,7 @@ case class INode(user: String, group: String, permission: FsPermission,
 }
 
 object INode {
-  def deserilize(inputStream: InputStream, timestamp: Long): INode = {
+  def deserialize(inputStream: InputStream, timestamp: Long): INode = {
     var result: INode = null
     if (inputStream != null) {
       val dataInputStream: DataInputStream = new DataInputStream(inputStream)
@@ -78,7 +77,7 @@ object INode {
         }
         case FileType.FILE => {
           val blockLength = dataInputStream.readInt
-          val fileBlocks: Seq[BlockMeta] = Nil
+          var fileBlocks: Seq[BlockMeta] = Nil
           val blockRange = 0 until blockLength
           blockRange.foreach(_ => {
             val mostSigBits: Long = dataInputStream.readLong
@@ -89,18 +88,18 @@ object INode {
             // Deserialize SubBlocks for this block
             val numSubBlocks: Int = dataInputStream.readInt
 
-            val subBlocks: Seq[SubBlockMeta] = Nil
+            var subBlocks: Seq[SubBlockMeta] = Nil
             val subBlockRange = 0 until numSubBlocks
             subBlockRange.foreach(_ => {
               val subMostSigBits: Long = dataInputStream.readLong
               val subLeastSigBits: Long = dataInputStream.readLong
               val subOffset: Long = dataInputStream.readLong
               val subLength: Long = dataInputStream.readLong
-              subBlocks :+ SubBlockMeta(new UUID(subMostSigBits, subLeastSigBits), subOffset, subLength)
+              subBlocks = subBlocks :+ SubBlockMeta(new UUID(subMostSigBits, subLeastSigBits), subOffset, subLength)
             })
-            fileBlocks :+ BlockMeta(new UUID(mostSigBits, leastSigBits), offset, length, subBlocks)
+            fileBlocks = fileBlocks :+ BlockMeta(new UUID(mostSigBits, leastSigBits), offset, length, subBlocks)
           })
-          result = INode(userBuffer.toString, groupBuffer.toString, perms, fType, fileBlocks, timestamp)
+          result = INode(new String(userBuffer), new String(groupBuffer), perms, fType, fileBlocks, timestamp)
         }
         case _ => throw new IllegalArgumentException("Cannot deserialize INode.")
       }
