@@ -16,7 +16,7 @@ class INodeTest extends FlatSpec {
   val path = new Path(URI.create("jquery.fixedheadertable.min.js"))
   val iNode = INode("user", "group", FsPermission.getDefault, FileType.FILE, blocks, timestamp)
 
-  it should "result in correct serialization" in {
+  it should "result in correct serialization for a file" in {
     val input = new ByteArrayInputStream(iNode.serialize.array)
     assert(iNode === INode.deserialize(input, timestamp))
   }
