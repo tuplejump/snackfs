@@ -19,8 +19,6 @@ import java.net.URI
 import org.apache.hadoop.fs.Path
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.apache.cassandra.utils.ByteBufferUtil
-import java.io.{ByteArrayOutputStream, File}
-import java.nio.{MappedByteBuffer, ByteBuffer}
 
 class SnackFSThriftStoreSpec extends FlatSpec with BeforeAndAfterAll {
 
@@ -37,9 +35,12 @@ class SnackFSThriftStoreSpec extends FlatSpec with BeforeAndAfterAll {
   val block1 = BlockMeta(UUID.randomUUID, 0, 256, subBlocks)
   val block2 = BlockMeta(UUID.randomUUID, 0, 256, subBlocks)
   val blocks = List(block1, block2)
-  val pathURI= URI.create("/home/shiti/Downloads/jquery.fixedheadertable.min.js")
+  val pathURI = URI.create("testFile.txt")
   val path = new Path(pathURI)
   val iNode = INode("user", "group", FsPermission.getDefault, FileType.FILE, blocks, timestamp)
+
+  val subBlockMeta1 = SubBlockMeta(UUID.randomUUID, 0, 128)
+  val data = ByteBufferUtil.bytes("Test to store subBLock")
 
   it should "create a keyspace with name RANDOM" in {
     val ks = store.createKeyspace(store.buildSchema("RANDOM", 1))
@@ -67,19 +68,29 @@ class SnackFSThriftStoreSpec extends FlatSpec with BeforeAndAfterAll {
     assert(responseValue === GenericOpSuccess())
   }
 
+
   it should "fetch created INode" in {
     val response = store.retrieveINode(path)
-    assert(Await.result(response, 10 seconds).user === "user")
-    assert(Await.result(response, 10 seconds).group === "group")
-    assert(Await.result(response, 10 seconds).blocks === blocks)
+    val result: INode = Await.result(response, 10 seconds)
+    assert(result === iNode)
   }
 
   it should "update INode on storing subBlock" in {
-    val newSubBlockMeta = SubBlockMeta(UUID.randomUUID, 0, 128)
-    val data = ByteBufferUtil.bytes("Test to store subBLock")
-    val storeResponse = store.storeSubBlockAndUpdateINode(path, iNode, block1, newSubBlockMeta,data)
-    val response = Await.result(storeResponse,10 seconds)
+    val storeResponse = store.storeSubBlockAndUpdateINode(path, iNode, block1, subBlockMeta1, data)
+    val response = Await.result(storeResponse, 10 seconds)
     assert(response === GenericOpSuccess())
+    val fetchedINode = store.retrieveINode(path)
+    val result: INode = Await.result(fetchedINode, 10 seconds)
+    assert(result.user === "user")
+    val updatedBlock = result.blocks.filter(p => p.id == block1.id).head
+    assert(updatedBlock.length === block1.length + subBlockMeta1.length)
+    assert(updatedBlock.subBlocks.length === block1.subBlocks.length + 1)
+  }
+
+  it should "fetch created subBlock" in {
+    val storeResponse = store.retrieveSubBlock(block1, subBlockMeta1, 0)
+    val response = Await.result(storeResponse, 10 seconds)
+    assert(response.available === data.limit)
   }
 
   override def afterAll = {

@@ -147,9 +147,7 @@ class SnackFSThriftStore(client: AsyncClient) extends SnackFSStore {
     result
   }
 
-  private def generateMutationforINode(data: ByteBuffer, path: Path): Map[ByteBuffer, java.util.Map[String, java.util.List[Mutation]]] = {
-    val timestamp = System.currentTimeMillis()
-
+  private def generateMutationforINode(data: ByteBuffer, path: Path,timestamp:Long): Map[ByteBuffer, java.util.Map[String, java.util.List[Mutation]]] = {
     val pathColMutation = createMutationForCol(pathCol, ByteBufferUtil.bytes(path.toUri.getPath), timestamp)
     val parentColMutation = createMutationForCol(parentPathCol, ByteBufferUtil.bytes(getParentForIndex(path)), timestamp)
     val sentinelMutation = createMutationForCol(sentCol, sentinelValue, timestamp)
@@ -164,7 +162,8 @@ class SnackFSThriftStore(client: AsyncClient) extends SnackFSStore {
 
   def storeINode(path: Path, iNode: INode): Future[GenericOpSuccess] = {
     val data: ByteBuffer = iNode.serialize
-    val mutationMap: Map[ByteBuffer, java.util.Map[String, java.util.List[Mutation]]] = generateMutationforINode(data, path)
+    val timestamp = iNode.timestamp
+    val mutationMap: Map[ByteBuffer, java.util.Map[String, java.util.List[Mutation]]] = generateMutationforINode(data, path,timestamp)
     val iNodeFuture = AsyncUtil.executeAsync[batch_mutate_call](client.batch_mutate(mutationMap, consistencyLevelWrite, _))
     val prom = promise[GenericOpSuccess]
     iNodeFuture.onSuccess {
@@ -178,7 +177,7 @@ class SnackFSThriftStore(client: AsyncClient) extends SnackFSStore {
     prom.future
   }
 
-  def performGet(key: ByteBuffer, columnPath: ColumnPath, consistency: ConsistencyLevel): Future[ColumnOrSuperColumn] = {
+  private def performGet(key: ByteBuffer, columnPath: ColumnPath, consistency: ConsistencyLevel): Future[ColumnOrSuperColumn] = {
     val prom = promise[ColumnOrSuperColumn]
     val getFuture = AsyncUtil.executeAsync[get_call](client.get(key, columnPath, consistency, _))
     getFuture.onSuccess {
@@ -247,7 +246,7 @@ class SnackFSThriftStore(client: AsyncClient) extends SnackFSStore {
   def retrieveSubBlock(blockMeta: BlockMeta, subBlockMeta: SubBlockMeta, byteRangeStart: Long): Future[InputStream] = {
     val blockId: ByteBuffer = ByteBufferUtil.bytes(blockMeta.id)
     val subBlockId = ByteBufferUtil.bytes(subBlockMeta.id)
-    val subBlockFuture = performGet(subBlockId, new ColumnPath("sblock").setColumn(blockId), consistencyLevelRead)
+    val subBlockFuture = performGet(blockId, new ColumnPath("sblock").setColumn(subBlockId), consistencyLevelRead)
     val prom = promise[InputStream]
     subBlockFuture.onSuccess {
       case p => prom success ByteBufferUtil.inputStream(p.column.value)
@@ -266,7 +265,7 @@ class SnackFSThriftStore(client: AsyncClient) extends SnackFSStore {
         val timestamp = System.currentTimeMillis()
         val updatedSubBlockMetaList = block.subBlocks ++ List(subBlockMeta)
         val otherBlocks = iNode.blocks.filter(b => b.id != block.id)
-        val updatedBlockMeta = BlockMeta(block.id, block.offset, block.length + data.array().length, updatedSubBlockMetaList)
+        val updatedBlockMeta = BlockMeta(block.id, block.offset, block.length + subBlockMeta.length, updatedSubBlockMetaList)
         val updatedINode = INode(iNode.user, iNode.group, iNode.permission, iNode.fileType, otherBlocks ++ List(updatedBlockMeta), timestamp)
         val storeReq = storeINode(path, updatedINode)
         storeReq.onSuccess {
