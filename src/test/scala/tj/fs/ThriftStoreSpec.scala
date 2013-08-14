@@ -20,7 +20,7 @@ import org.apache.hadoop.fs.Path
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.apache.cassandra.utils.ByteBufferUtil
 
-class SnackFSThriftStoreSpec extends FlatSpec with BeforeAndAfterAll {
+class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll {
 
   val clientManager = new TAsyncClientManager()
   val protocolFactory = new TBinaryProtocol.Factory()
@@ -28,7 +28,7 @@ class SnackFSThriftStoreSpec extends FlatSpec with BeforeAndAfterAll {
 
   def client = new AsyncClient(protocolFactory, clientManager, transport)
 
-  val store = new SnackFSThriftStore(client)
+  val store = new ThriftStore(client)
 
   val timestamp = System.currentTimeMillis()
   val subBlocks = List(SubBlockMeta(UUID.randomUUID, 0, 128), SubBlockMeta(UUID.randomUUID, 128, 128))
@@ -87,14 +87,35 @@ class SnackFSThriftStoreSpec extends FlatSpec with BeforeAndAfterAll {
     assert(updatedBlock.subBlocks.length === block1.subBlocks.length + 1)
   }
 
+  def convertStreamToString(inputStream: java.io.InputStream): String = {
+    val scanner = new java.util.Scanner(inputStream).useDelimiter("\\A")
+    if (scanner.hasNext()) {
+      scanner.next()
+    }
+    else ""
+  }
+
   it should "fetch created subBlock" in {
     val storeResponse = store.retrieveSubBlock(block1, subBlockMeta1, 0)
     val response = Await.result(storeResponse, 10 seconds)
-    assert(response.available === data.limit)
+    val responseString = convertStreamToString(response)
+    assert(responseString === new String(data.array()))
+  }
+
+  it should "fetch block1" in {
+    val pathURI = URI.create("Blocktest.txt")
+    val path = new Path(pathURI)
+    val subBlockMeta1 = SubBlockMeta(UUID.randomUUID, 0, 128)
+    val block1 = BlockMeta(UUID.randomUUID, 0, 128, List(subBlockMeta1))
+    val iNode = INode("user", "group", FsPermission.getDefault, FileType.FILE, List(), timestamp)
+    Await.result(store.storeSubBlockAndUpdateINode(path, iNode, block1, subBlockMeta1, data), 10 seconds)
+    val result = store.retrieveBlock(block1, 0)
+    val resultString = convertStreamToString(result)
+    assert(resultString === new String(data.array()))
   }
 
   override def afterAll = {
-    Await.ready(AsyncUtil.executeAsync[system_drop_keyspace_call](client.system_drop_keyspace("RANDOM", _)), 50 seconds)
+    Await.ready(AsyncUtil.executeAsync[system_drop_keyspace_call](client.system_drop_keyspace("RANDOM", _)), 10 seconds)
     clientManager.stop()
   }
 

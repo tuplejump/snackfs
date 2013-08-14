@@ -5,13 +5,13 @@ import tj.model.BlockMeta
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
-class SnackFSSubBlockInputStream(store: SnackFSStore, blockMeta: BlockMeta, start: Long) extends InputStream {
+case class SubBlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, start: Long) extends InputStream {
   private var isClosed: Boolean = false
   private var stream: InputStream = null
   private var position: Long = start
   private var subBlockEndPosition: Long = -1
 
-  private def findSubBlock(target: Long) = {
+  private def findSubBlock(target: Long): InputStream = {
     if (stream != null) {
       stream.close
     }
@@ -20,11 +20,14 @@ class SnackFSSubBlockInputStream(store: SnackFSStore, blockMeta: BlockMeta, star
     if (subBlockIndex == -1) {
       throw new IOException("Impossible situation: could not find target position " + target)
     }
-    val offset = target - subBlockLengthTotals(subBlockIndex - 1)
+    var offset = target
+    if (subBlockIndex != 0) {
+      offset -= subBlockLengthTotals(subBlockIndex - 1)
+    }
     val subBlock = blockMeta.subBlocks(subBlockIndex)
     position = target
-    stream = Await.result(store.retrieveSubBlock(blockMeta, subBlock, offset), 10 seconds)
     subBlockEndPosition = subBlock.length - 1
+    Await.result(store.retrieveSubBlock(blockMeta, subBlock, offset), 10 seconds)
   }
 
   def read: Int = {
@@ -34,7 +37,7 @@ class SnackFSSubBlockInputStream(store: SnackFSStore, blockMeta: BlockMeta, star
     var nextByte = -1
     if (position < blockMeta.length) {
       if (position > subBlockEndPosition) {
-        findSubBlock(position)
+        stream = findSubBlock(position)
       }
       nextByte = stream.read()
       if (nextByte >= 0) {
@@ -52,7 +55,7 @@ class SnackFSSubBlockInputStream(store: SnackFSStore, blockMeta: BlockMeta, star
     var result = -1
     if (position < blockMeta.length) {
       if (position > subBlockEndPosition) {
-        findSubBlock(position)
+        stream = findSubBlock(position)
       }
       val realLen: Int = List(len, (subBlockEndPosition - position + 1).asInstanceOf[Int]).min
       result = stream.read(buf, off, realLen)
@@ -64,7 +67,7 @@ class SnackFSSubBlockInputStream(store: SnackFSStore, blockMeta: BlockMeta, star
   }
 
   override def close = {
-    if(!isClosed){
+    if (!isClosed) {
       stream.close
       super.close
       isClosed = true

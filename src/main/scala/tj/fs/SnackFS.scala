@@ -5,7 +5,7 @@ import java.net.URI
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
 
-class SnackFileSystem extends FileSystem {
+class SnackFS extends FileSystem {
   def getUri: URI = null
 
   def open(f: Path, bufferSize: Int): FSDataInputStream = null

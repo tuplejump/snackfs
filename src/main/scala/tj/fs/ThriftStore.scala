@@ -23,7 +23,7 @@ import tj.model.SubBlockMeta
 import tj.model.GenericOpSuccess
 import java.io.InputStream
 
-class SnackFSThriftStore(client: AsyncClient) extends SnackFSStore {
+class ThriftStore(client: AsyncClient) extends FileSystemStore {
 
 
   private val pathCol: ByteBuffer = ByteBufferUtil.bytes("path")
@@ -279,4 +279,7 @@ class SnackFSThriftStore(client: AsyncClient) extends SnackFSStore {
     prom.future
   }
 
+  def retrieveBlock(blockMeta: BlockMeta, start: Long): InputStream = {
+    SubBlockInputStream(this,blockMeta,start)
+  }
 }

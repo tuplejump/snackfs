@@ -4,7 +4,7 @@ import org.apache.hadoop.fs.{Path, FSInputStream}
 import java.io.InputStream
 import tj.model.BlockMeta
 
-case class SnackFSInputStream(store: SnackFSStore, path: Path) extends FSInputStream {
+case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSInputStream {
 
   private val stream: InputStream = null
 

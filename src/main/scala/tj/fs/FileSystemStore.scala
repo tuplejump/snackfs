@@ -10,7 +10,7 @@ import tj.model.SubBlockMeta
 import tj.model.GenericOpSuccess
 import java.io.InputStream
 
-trait SnackFSStore {
+trait FileSystemStore {
   def buildSchema(keyspace: String, replicationFactor: Int): KsDef
 
   def createKeyspace(ksDef: KsDef): Future[Keyspace]
@@ -24,5 +24,7 @@ trait SnackFSStore {
   def retrieveSubBlock(blockMeta: BlockMeta, subBlockMeta: SubBlockMeta, byteRangeStart: Long):Future[InputStream]
 
   def storeSubBlockAndUpdateINode(path: Path, iNode: INode,block:BlockMeta,subBlockMeta: SubBlockMeta, data: ByteBuffer): Future[GenericOpSuccess]
+
+  def retrieveBlock (blockMeta:BlockMeta,start:Long):InputStream
 
 }
