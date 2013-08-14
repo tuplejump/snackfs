@@ -7,14 +7,11 @@ import scala.concurrent.duration._
 
 case class SubBlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, start: Long) extends InputStream {
   private var isClosed: Boolean = false
-  private var stream: InputStream = null
+  private var inputStream: InputStream = null
   private var position: Long = start
   private var subBlockEndPosition: Long = -1
 
   private def findSubBlock(target: Long): InputStream = {
-    if (stream != null) {
-      stream.close
-    }
     val subBlockLengthTotals = blockMeta.subBlocks.scanLeft(0L)(_ + _.length).tail
     val subBlockIndex = subBlockLengthTotals.indexWhere(p => target < p)
     if (subBlockIndex == -1) {
@@ -37,9 +34,12 @@ case class SubBlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, sta
     var nextByte = -1
     if (position < blockMeta.length) {
       if (position > subBlockEndPosition) {
-        stream = findSubBlock(position)
+        if (inputStream != null) {
+          inputStream.close
+        }
+        inputStream = findSubBlock(position)
       }
-      nextByte = stream.read()
+      nextByte = inputStream.read()
       if (nextByte >= 0) {
         position += 1
       }
@@ -51,14 +51,16 @@ case class SubBlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, sta
     if (isClosed) {
       throw new IOException("Stream closed")
     }
-
     var result = -1
     if (position < blockMeta.length) {
       if (position > subBlockEndPosition) {
-        stream = findSubBlock(position)
+        if (inputStream != null) {
+          inputStream.close
+        }
+        inputStream = findSubBlock(position)
       }
-      val realLen: Int = List(len, (subBlockEndPosition - position + 1).asInstanceOf[Int]).min
-      result = stream.read(buf, off, realLen)
+      val realLen: Int = math.min(len, (subBlockEndPosition - position + 1).asInstanceOf[Int])
+      result = inputStream.read(buf, off, realLen)
       if (result >= 0) {
         position += result
       }
@@ -68,7 +70,9 @@ case class SubBlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, sta
 
   override def close = {
     if (!isClosed) {
-      stream.close
+      if (inputStream != null) {
+        inputStream.close
+      }
       super.close
       isClosed = true
     }
