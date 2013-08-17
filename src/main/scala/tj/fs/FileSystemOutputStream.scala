@@ -9,16 +9,17 @@ import tj.model.{SubBlockMeta, BlockMeta, FileType, INode}
 import org.apache.hadoop.fs.permission.FsPermission
 import scala.concurrent.Await
 import scala.concurrent.duration._
+import tj.util.AsyncUtil
 
-class FileSystemOutputStream(store: FileSystemStore, path: Path,
-                             blockSize: Long, subBlockSize: Long,
-                             bufferSize: Long) extends OutputStream {
+case class FileSystemOutputStream(store: FileSystemStore, path: Path,
+                                  blockSize: Long, subBlockSize: Long,
+                                  bufferSize: Long) extends OutputStream {
 
   private var isClosed: Boolean = false
 
   private var blockId: UUID = UUIDGen.getTimeUUID
 
-  private val backupBuffer = ByteBuffer.allocateDirect(subBlockSize.asInstanceOf[Int])
+  private var backupBuffer: ByteBuffer = ByteBuffer.allocate(subBlockSize.asInstanceOf[Int])
 
   private var bytesWrittenToBlock: Long = 0
   private var bytesWrittenToSubBlock: Long = 0
@@ -32,7 +33,7 @@ class FileSystemOutputStream(store: FileSystemStore, path: Path,
   private var blocksMeta = List[BlockMeta]()
   private var subBlocksMeta = List[SubBlockMeta]()
 
-  private val outBuffer: Array[Byte] = Array()
+  private val outBuffer: Array[Byte] = new Array[Byte](bufferSize.asInstanceOf[Int])
 
   def write(p1: Int) = {
     if (isClosed) {
@@ -43,7 +44,7 @@ class FileSystemOutputStream(store: FileSystemStore, path: Path,
       || (position >= bufferSize)) {
       flush
     }
-    outBuffer(position) = p1.asInstanceOf[Byte]
+    outBuffer.update(position, p1.asInstanceOf[Byte])
     position += 1
     filePosition += 1
   }
@@ -52,11 +53,16 @@ class FileSystemOutputStream(store: FileSystemStore, path: Path,
     if (isClosed) {
       throw new IOException("Stream closed")
     }
-    while (length > 0) {
+    var offsetTemp = offset
+    var lengthTemp = length
+
+    while (lengthTemp > 0) {
       val remaining: Int = (bufferSize - position).asInstanceOf[Int]
-      var toWrite: Int = math.min(remaining, length)
+      var toWrite: Int = math.min(remaining, lengthTemp)
       toWrite = math.min(toWrite, subBlockSize.asInstanceOf[Int])
-      System.arraycopy(buf, offset, outBuffer, position, toWrite)
+      System.arraycopy(buf, offsetTemp, outBuffer, position, toWrite)
+      offsetTemp += toWrite
+      lengthTemp -= toWrite
       position += toWrite
       filePosition += toWrite
       val reachedLocalBuffer = position == bufferSize
@@ -67,6 +73,7 @@ class FileSystemOutputStream(store: FileSystemStore, path: Path,
   }
 
   private def endSubBlock = {
+    println("%d:%d:%d".format(bytesWrittenToBlock, bytesWrittenToSubBlock, position))
     val offset = bytesWrittenToBlock - bytesWrittenToSubBlock - position
     val subBlockMeta = SubBlockMeta(UUIDGen.getTimeUUID, offset, bytesWrittenToSubBlock)
 
@@ -74,15 +81,18 @@ class FileSystemOutputStream(store: FileSystemStore, path: Path,
     backupBuffer.rewind()
 
     val subBlockList = subBlocksMeta ++ List(subBlockMeta)
-    val blockMeta = BlockMeta(blockId, filePosition - bytesWrittenToBlock - position, bytesWrittenToBlock, subBlockList)
-    val iNode = INode(user, user, permission, FileType.FILE, blocksMeta, timestamp)
-    Await.result(store.storeSubBlockAndUpdateINode(path, iNode, blockMeta, subBlockMeta, backupBuffer), 10 seconds)
+    println("Writing subblock... BLOCK SIZE %d".format(bytesWrittenToBlock))
+    Await.ready(store.storeSubBlock(blockId, subBlockMeta, backupBuffer), 10 seconds)
+    //bytesWrittenToSubBlock = 0
     subBlocksMeta = subBlockList
   }
 
   private def endBlock = {
+    println("current block size %d".format(bytesWrittenToBlock))
     val blockMeta = BlockMeta(blockId, filePosition - bytesWrittenToBlock - position, bytesWrittenToBlock, subBlocksMeta)
     blocksMeta = blocksMeta ++ List(blockMeta)
+    val iNode = INode(user, user, permission, FileType.FILE, blocksMeta, timestamp)
+    Await.ready(store.storeINode(path, iNode), 10 seconds)
     bytesWrittenToBlock = 0
     subBlocksMeta = List[SubBlockMeta]()
     blockId = UUIDGen.getTimeUUID
@@ -91,13 +101,13 @@ class FileSystemOutputStream(store: FileSystemStore, path: Path,
   private def flushData(maxPosition: Int) = {
     val workingPosition: Int = math.min(position, maxPosition)
     if (workingPosition > 0) {
-      backupBuffer.put(outBuffer, 0, workingPosition)
+      backupBuffer = ByteBuffer.wrap(outBuffer, 0, workingPosition)
 
       bytesWrittenToBlock += workingPosition
       bytesWrittenToSubBlock += workingPosition
 
       System.arraycopy(outBuffer, workingPosition, outBuffer, 0, position - workingPosition)
-      position -= 1
+      position = 0
     }
   }
 
@@ -106,18 +116,23 @@ class FileSystemOutputStream(store: FileSystemStore, path: Path,
   private def overFlowsSubBlockSize: Boolean = (bytesWrittenToSubBlock + position) >= subBlockSize
 
   override def flush = {
+    println("Flushing!!! " + isClosing)
     if (isClosed) {
       throw new IOException("Stream closed")
     }
+
     if (overFlowsBlockSize || overFlowsSubBlockSize) {
       val difference = subBlockSize - bytesWrittenToSubBlock
       flushData(difference.asInstanceOf[Int])
     }
+
     if (bytesWrittenToSubBlock == subBlockSize) {
       endSubBlock
     }
-    if (bytesWrittenToBlock == blockSize) {
-      if (bytesWrittenToSubBlock != 0) {
+
+    if (bytesWrittenToBlock == blockSize || isClosing) {
+      println("Closing subblock...")
+      if (bytesWrittenToSubBlock != 0 || position > 0) {
         endSubBlock
       }
       endBlock
@@ -125,8 +140,13 @@ class FileSystemOutputStream(store: FileSystemStore, path: Path,
     flushData(position)
   }
 
+  var isClosing: Boolean = false
+
   override def close = {
     if (!isClosed) {
+      println("CLOSING --- ")
+      isClosing = true
+      flush
       super.close
       isClosed = true
     }
