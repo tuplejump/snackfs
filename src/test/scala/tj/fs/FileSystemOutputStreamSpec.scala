@@ -47,12 +47,12 @@ class FileSystemOutputStreamSpec extends FlatSpec with BeforeAndAfterAll {
     assert(outBuf === data.array())
   }
 
-  it should "fetch data loaded from smaller(2KB) file" in {
-    val nioPath = FileSystems.getDefault().getPath("/home/shiti/Documents/testTable.html")
+  it should "fetch data loaded from smaller(<2KB) file" in {
+    val nioPath = FileSystems.getDefault().getPath("src/test/resources/vsmall.txt")
     val data = Files.readAllBytes(nioPath)
 
     println("file size=" + data.length)
-    val pathURI = URI.create("fileRead.pdf")
+    val pathURI = URI.create("vsmall.txt")
     val path = new Path(pathURI)
     val maxBlockSize = 500
     val maxSubBlockSize = 50
@@ -78,12 +78,12 @@ class FileSystemOutputStreamSpec extends FlatSpec with BeforeAndAfterAll {
     assert(fetchedData === data)
   }
 
-  it should "fetch data loaded from medium(197KB) file" in {
-    val nioPath = FileSystems.getDefault().getPath("/home/shiti/books/mapreduce-osdi04.pdf")
+  it should "fetch data loaded from medium(~600KB) file" in {
+    val nioPath = FileSystems.getDefault().getPath("src/test/resources/small.txt")
     val data = Files.readAllBytes(nioPath)
 
     println("file size=" + data.length)
-    val pathURI = URI.create("fileRead.pdf")
+    val pathURI = URI.create("small.txt")
     val path = new Path(pathURI)
     val maxBlockSize = 30000
     val maxSubBlockSize = 300

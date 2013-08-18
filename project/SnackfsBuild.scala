@@ -13,9 +13,10 @@ object SnackfsBuild extends Build {
       scalaVersion := "2.9.3",
 
       libraryDependencies ++= Seq("org.apache.hadoop" % "hadoop-common" % "0.22.0",
-        "org.apache.cassandra" % "cassandra-thrift" % "1.2.8",
-        "org.apache.cassandra" % "cassandra-all" % "1.2.8",
-        "org.scalatest" %% "scalatest" % "1.9.1" % "test"
+        "org.apache.cassandra" % "cassandra-thrift" % "1.2.6",
+        "org.apache.cassandra" % "cassandra-all" % "1.2.6",
+        "org.scalatest" %% "scalatest" % "1.9.1" % "test",
+        "org.apache.commons" % "commons-io" % "1.3.2"
       )
     )
   )
