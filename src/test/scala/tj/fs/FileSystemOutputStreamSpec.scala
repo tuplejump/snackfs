@@ -89,7 +89,7 @@ class FileSystemOutputStreamSpec extends FlatSpec with BeforeAndAfterAll with Mu
     val pathURI = URI.create("small.txt")
     val path = new Path(pathURI)
     val maxBlockSize = 30000
-    val maxSubBlockSize = 300
+    val maxSubBlockSize = 3000
     val outputStream = FileSystemOutputStream(store, path, maxBlockSize, maxSubBlockSize, data.length)
     outputStream.write(data, 0, data.length)
     outputStream.close
@@ -100,16 +100,14 @@ class FileSystemOutputStreamSpec extends FlatSpec with BeforeAndAfterAll with Mu
     println(minSize)
     assert(inode.blocks.length >= minSize)
 
-    var fetchedData: Array[Byte] = new Array[Byte](data.length)
+    var fetchedData: Array[Byte] = Array()
     var offset = 0
     inode.blocks.foreach(block => {
-      var blockData = store.retrieveBlock(block, 0)
+      val blockData = store.retrieveBlock(block, 0)
       val source = IOUtils.toByteArray(blockData)
-      println("sourceSize" + source.length)
-      println("offset" + block.offset + "blockSize" + block.length)
-      println(blockData.read(fetchedData, offset, block.length.asInstanceOf[Int]))
       blockData.close()
-      offset += (block.length).asInstanceOf[Int]
+      fetchedData = fetchedData ++ source
+      offset += source.length
     })
     println("completed copy")
     val fetchedDataString = new String(fetchedData)
