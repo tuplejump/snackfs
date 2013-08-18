@@ -41,7 +41,7 @@ class FileSystemOutputStreamSpec extends FlatSpec with BeforeAndAfterAll with Mu
     val inode = Await.result(store.retrieveINode(path), 10 seconds)
     assert(inode.blocks.length === 1)
 
-    val blockData = store.retrieveBlock(inode.blocks(0), 0)
+    val blockData = store.retrieveBlock(inode.blocks(0))
     var outBuf: Array[Byte] = new Array[Byte](23)
     blockData.read(outBuf, 0, 23)
     assert(outBuf != null)
@@ -69,7 +69,7 @@ class FileSystemOutputStreamSpec extends FlatSpec with BeforeAndAfterAll with Mu
     var fetchedData: Array[Byte] = new Array[Byte](data.length)
     var offset = 0
     inode.blocks.foreach(block => {
-      val blockData = store.retrieveBlock(block, 0)
+      val blockData = store.retrieveBlock(block)
       val source = IOUtils.toByteArray(blockData)
       System.arraycopy(source, 0, fetchedData, offset, source.length)
       blockData.close()
@@ -88,8 +88,8 @@ class FileSystemOutputStreamSpec extends FlatSpec with BeforeAndAfterAll with Mu
     println("file size=" + data.length)
     val pathURI = URI.create("small.txt")
     val path = new Path(pathURI)
-    val maxBlockSize = 30000
-    val maxSubBlockSize = 3000
+    val maxBlockSize: Int = 40960
+    val maxSubBlockSize = 4096
     val outputStream = FileSystemOutputStream(store, path, maxBlockSize, maxSubBlockSize, data.length)
     outputStream.write(data, 0, data.length)
     outputStream.close
@@ -100,17 +100,21 @@ class FileSystemOutputStreamSpec extends FlatSpec with BeforeAndAfterAll with Mu
     println(minSize)
     assert(inode.blocks.length >= minSize)
 
-    var fetchedData: Array[Byte] = Array()
+    var fetchedData: Array[Byte] = Array[Byte]()
     var offset = 0
     inode.blocks.foreach(block => {
-      val blockData = store.retrieveBlock(block, 0)
+      val blockData = store.retrieveBlock(block)
       val source = IOUtils.toByteArray(blockData)
       blockData.close()
       fetchedData = fetchedData ++ source
       offset += source.length
+      println("BLOCK -- " + block.toString)
+      println("READ -- " + source.length)
+      println("TOTAL READ -- " + offset)
     })
     println("completed copy")
     val fetchedDataString = new String(fetchedData)
+    fetchedData.length must be(data.length)
     fetchedDataString must be(dataString)
   }
 

@@ -5,12 +5,12 @@ import tj.model.BlockMeta
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
-case class SubBlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, start: Long) extends InputStream {
+case class SubBlockInputStream(store: FileSystemStore, blockMeta: BlockMeta) extends InputStream {
   private var isClosed: Boolean = false
   private var inputStream: InputStream = null
-  private var currentPosition: Long = start
+  private var currentPosition: Long = 0
   private val length = blockMeta.length
-  private var targetSubBLockSize = 0L
+  private var targetSubblockSize = 0L
 
   private def findSubBlock(targetPosition: Long): InputStream = {
     val subBlockLengthTotals = blockMeta.subBlocks.scanLeft(0L)(_ + _.length).tail
@@ -24,7 +24,7 @@ case class SubBlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, sta
     }
     val subBlock = blockMeta.subBlocks(subBlockIndex)
     currentPosition = targetPosition
-    targetSubBLockSize = subBlock.length
+    targetSubblockSize = subBlock.length
     Await.result(store.retrieveSubBlock(blockMeta, subBlock, offset), 10 seconds)
   }
 
@@ -34,16 +34,14 @@ case class SubBlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, sta
     }
     var result = -1
     if (currentPosition <= length - 1) {
-      if (currentPosition > targetSubBLockSize - 1) {
+      if (currentPosition > targetSubblockSize - 1) {
         if (inputStream != null) {
           inputStream.close()
         }
         inputStream = findSubBlock(currentPosition)
       }
       result = inputStream.read()
-      if (result >= 0) {
-        currentPosition += 1
-      }
+      currentPosition += 1
     }
     result
   }
@@ -63,10 +61,11 @@ case class SubBlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, sta
       while (result < len && currentPosition <= length - 1) {
         inputStream = findSubBlock(currentPosition)
         val remaining = len - (off + result)
-        val size = math.min(remaining, targetSubBLockSize)
-        inputStream.read(buf, off + result, size.asInstanceOf[Int])
-        result += size.asInstanceOf[Int]
-        currentPosition += size
+        val size = math.min(remaining, targetSubblockSize)
+        val readSize = inputStream.read(buf, off + result, size.asInstanceOf[Int])
+        println("TARGET - %d, READ - %d".format(targetSubblockSize, readSize))
+        result += readSize
+        currentPosition += readSize
       }
       if (result == 0) {
         result = -1

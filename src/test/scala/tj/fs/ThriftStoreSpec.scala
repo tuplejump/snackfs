@@ -109,7 +109,7 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll {
     val block1 = BlockMeta(UUID.randomUUID, 0, 128, List(subBlockMeta1))
     val iNode = INode("user", "group", FsPermission.getDefault, FileType.FILE, List(), timestamp)
     Await.result(store.storeSubBlockAndUpdateINode(path, iNode, block1, subBlockMeta1, data), 10 seconds)
-    val result = store.retrieveBlock(block1, 0)
+    val result = store.retrieveBlock(block1)
     val resultString = convertStreamToString(result)
     assert(resultString === new String(data.array()))
   }

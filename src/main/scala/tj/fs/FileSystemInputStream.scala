@@ -43,7 +43,10 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
     val block = iNode.blocks(blockIndex)
     position = target
     blockEndPosition = block.length - 1
-    store.retrieveBlock(block, offset)
+    val bis = store.retrieveBlock(block)
+    bis.skip(offset)
+    bis
+
   }
 
   def read(): Int = {

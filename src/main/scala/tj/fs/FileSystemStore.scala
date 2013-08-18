@@ -25,6 +25,6 @@ trait FileSystemStore {
 
   def storeSubBlockAndUpdateINode(path: Path, iNode: INode,block:BlockMeta,subBlockMeta: SubBlockMeta, data: ByteBuffer): Future[GenericOpSuccess]
 
-  def retrieveBlock (blockMeta:BlockMeta,start:Long):InputStream
+  def retrieveBlock (blockMeta:BlockMeta):InputStream
 
 }

@@ -279,7 +279,7 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
     prom.future
   }
 
-  def retrieveBlock(blockMeta: BlockMeta, start: Long): InputStream = {
-    SubBlockInputStream(this, blockMeta, start)
+  def retrieveBlock(blockMeta: BlockMeta): InputStream = {
+    SubBlockInputStream(this, blockMeta)
   }
 }
