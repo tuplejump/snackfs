@@ -11,6 +11,7 @@ case class SubBlockInputStream(store: FileSystemStore, blockMeta: BlockMeta) ext
   private var currentPosition: Long = 0
   private val length = blockMeta.length
   private var targetSubblockSize = 0L
+  private var targetSubblockOffset = 0L
 
   private def findSubBlock(targetPosition: Long): InputStream = {
     val subBlockLengthTotals = blockMeta.subBlocks.scanLeft(0L)(_ + _.length).tail
@@ -25,6 +26,7 @@ case class SubBlockInputStream(store: FileSystemStore, blockMeta: BlockMeta) ext
     val subBlock = blockMeta.subBlocks(subBlockIndex)
     currentPosition = targetPosition
     targetSubblockSize = subBlock.length
+    targetSubblockOffset = subBlock.offset
     Await.result(store.retrieveSubBlock(blockMeta, subBlock, offset), 10 seconds)
   }
 
@@ -34,7 +36,7 @@ case class SubBlockInputStream(store: FileSystemStore, blockMeta: BlockMeta) ext
     }
     var result = -1
     if (currentPosition <= length - 1) {
-      if (currentPosition > targetSubblockSize - 1) {
+      if (currentPosition > (targetSubblockOffset + targetSubblockSize - 1)) {
         if (inputStream != null) {
           inputStream.close()
         }
@@ -59,11 +61,16 @@ case class SubBlockInputStream(store: FileSystemStore, blockMeta: BlockMeta) ext
     var result = 0
     if (len > 0) {
       while (result < len && currentPosition <= length - 1) {
-        inputStream = findSubBlock(currentPosition)
+        if (currentPosition > (targetSubblockOffset + targetSubblockSize - 1)) {
+          if (inputStream != null) {
+            inputStream.close()
+          }
+          inputStream = findSubBlock(currentPosition)
+        }
         val remaining = len - (off + result)
         val size = math.min(remaining, targetSubblockSize)
         val readSize = inputStream.read(buf, off + result, size.asInstanceOf[Int])
-        println("TARGET - %d, READ - %d".format(targetSubblockSize, readSize))
+        println("SUBBLOCK SIZE - %d, TARGET -- %d, READ - %d".format(targetSubblockSize, remaining, readSize))
         result += readSize
         currentPosition += readSize
       }

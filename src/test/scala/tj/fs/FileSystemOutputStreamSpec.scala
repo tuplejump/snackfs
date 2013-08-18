@@ -88,8 +88,8 @@ class FileSystemOutputStreamSpec extends FlatSpec with BeforeAndAfterAll with Mu
     println("file size=" + data.length)
     val pathURI = URI.create("small.txt")
     val path = new Path(pathURI)
-    val maxBlockSize: Int = 40960
-    val maxSubBlockSize = 4096
+    val maxBlockSize: Int = 30000
+    val maxSubBlockSize = 3000
     val outputStream = FileSystemOutputStream(store, path, maxBlockSize, maxSubBlockSize, data.length)
     outputStream.write(data, 0, data.length)
     outputStream.close
