@@ -147,7 +147,7 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
     result
   }
 
-  private def generateMutationforINode(data: ByteBuffer, path: Path,timestamp:Long): Map[ByteBuffer, java.util.Map[String, java.util.List[Mutation]]] = {
+  private def generateMutationforINode(data: ByteBuffer, path: Path, timestamp: Long): Map[ByteBuffer, java.util.Map[String, java.util.List[Mutation]]] = {
     val pathColMutation = createMutationForCol(pathCol, ByteBufferUtil.bytes(path.toUri.getPath), timestamp)
     val parentColMutation = createMutationForCol(parentPathCol, ByteBufferUtil.bytes(getParentForIndex(path)), timestamp)
     val sentinelMutation = createMutationForCol(sentCol, sentinelValue, timestamp)
@@ -163,7 +163,7 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
   def storeINode(path: Path, iNode: INode): Future[GenericOpSuccess] = {
     val data: ByteBuffer = iNode.serialize
     val timestamp = iNode.timestamp
-    val mutationMap: Map[ByteBuffer, java.util.Map[String, java.util.List[Mutation]]] = generateMutationforINode(data, path,timestamp)
+    val mutationMap: Map[ByteBuffer, java.util.Map[String, java.util.List[Mutation]]] = generateMutationforINode(data, path, timestamp)
     val iNodeFuture = AsyncUtil.executeAsync[batch_mutate_call](client.batch_mutate(mutationMap, consistencyLevelWrite, _))
     val prom = promise[GenericOpSuccess]
     iNodeFuture.onSuccess {
@@ -280,6 +280,6 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
   }
 
   def retrieveBlock(blockMeta: BlockMeta, start: Long): InputStream = {
-    SubBlockInputStream(this,blockMeta,start)
+    SubBlockInputStream(this, blockMeta, start)
   }
 }
