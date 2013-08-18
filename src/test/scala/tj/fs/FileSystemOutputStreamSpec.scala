@@ -14,8 +14,9 @@ import tj.util.AsyncUtil
 import org.apache.cassandra.thrift.Cassandra.AsyncClient.{system_drop_keyspace_call, set_keyspace_call}
 import java.nio.file.{FileSystems, Files}
 import org.apache.commons.io.IOUtils
+import org.scalatest.matchers.MustMatchers
 
-class FileSystemOutputStreamSpec extends FlatSpec with BeforeAndAfterAll {
+class FileSystemOutputStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   val clientManager = new TAsyncClientManager()
   val protocolFactory = new TBinaryProtocol.Factory()
   val transport = new TNonblockingSocket("127.0.0.1", 9160)
@@ -82,6 +83,8 @@ class FileSystemOutputStreamSpec extends FlatSpec with BeforeAndAfterAll {
     val nioPath = FileSystems.getDefault().getPath("src/test/resources/small.txt")
     val data = Files.readAllBytes(nioPath)
 
+    val dataString = new java.lang.String(data)
+
     println("file size=" + data.length)
     val pathURI = URI.create("small.txt")
     val path = new Path(pathURI)
@@ -109,7 +112,8 @@ class FileSystemOutputStreamSpec extends FlatSpec with BeforeAndAfterAll {
       offset += (block.length).asInstanceOf[Int]
     })
     println("completed copy")
-    assert(fetchedData != data)
+    val fetchedDataString = new String(fetchedData)
+    fetchedDataString must be(dataString)
   }
 
   override def afterAll = {
