@@ -13,6 +13,7 @@ import scala.concurrent.duration._
 import tj.util.AsyncUtil
 import org.apache.cassandra.thrift.Cassandra.AsyncClient.{system_drop_keyspace_call, set_keyspace_call}
 import java.nio.file.{FileSystems, Files}
+import org.apache.commons.io.IOUtils
 
 class FileSystemOutputStreamSpec extends FlatSpec with BeforeAndAfterAll {
   val clientManager = new TAsyncClientManager()
@@ -46,32 +47,69 @@ class FileSystemOutputStreamSpec extends FlatSpec with BeforeAndAfterAll {
     assert(outBuf === data.array())
   }
 
-  it should "fetch data loaded from a file" in {
+  it should "fetch data loaded from smaller(2KB) file" in {
+    val nioPath = FileSystems.getDefault().getPath("/home/shiti/Documents/testTable.html")
+    val data = Files.readAllBytes(nioPath)
+
+    println("file size=" + data.length)
+    val pathURI = URI.create("fileRead.pdf")
+    val path = new Path(pathURI)
+    val maxBlockSize = 500
+    val maxSubBlockSize = 50
+    val outputStream = FileSystemOutputStream(store, path, maxBlockSize, maxSubBlockSize, data.length)
+    outputStream.write(data, 0, data.length)
+    outputStream.close
+
+    val inode = Await.result(store.retrieveINode(path), 10 seconds)
+    println("blocks=" + inode.blocks.length)
+    val minSize: Int = data.length / maxBlockSize
+    println(minSize)
+    assert(inode.blocks.length >= minSize)
+    var fetchedData: Array[Byte] = new Array[Byte](data.length)
+    var offset = 0
+    inode.blocks.foreach(block => {
+      val blockData = store.retrieveBlock(block, 0)
+      val source = IOUtils.toByteArray(blockData)
+      System.arraycopy(source, 0, fetchedData, offset, source.length)
+      blockData.close()
+      offset += (block.length).asInstanceOf[Int]
+    })
+    println("completed copy")
+    assert(fetchedData === data)
+  }
+
+  it should "fetch data loaded from medium(197KB) file" in {
     val nioPath = FileSystems.getDefault().getPath("/home/shiti/books/mapreduce-osdi04.pdf")
     val data = Files.readAllBytes(nioPath)
 
     println("file size=" + data.length)
     val pathURI = URI.create("fileRead.pdf")
     val path = new Path(pathURI)
-    val outputStream = FileSystemOutputStream(store, path, 30000, 3000, data.length)
+    val maxBlockSize = 30000
+    val maxSubBlockSize = 300
+    val outputStream = FileSystemOutputStream(store, path, maxBlockSize, maxSubBlockSize, data.length)
     outputStream.write(data, 0, data.length)
     outputStream.close
 
     val inode = Await.result(store.retrieveINode(path), 10 seconds)
     println("blocks=" + inode.blocks.length)
-    val minSize: Int = data.length / 30000
+    val minSize: Int = data.length / maxBlockSize
     println(minSize)
     assert(inode.blocks.length >= minSize)
-    val fetchedData: Array[Byte] = new Array[Byte](data.length)
+
+    var fetchedData: Array[Byte] = new Array[Byte](data.length)
     var offset = 0
     inode.blocks.foreach(block => {
-      val blockData = store.retrieveBlock(block, 0)
-      blockData.read(fetchedData, offset, block.length.asInstanceOf[Int])
-      println(block.toString)
-      offset += (block.length - 1).asInstanceOf[Int]
+      var blockData = store.retrieveBlock(block, 0)
+      val source = IOUtils.toByteArray(blockData)
+      println("sourceSize" + source.length)
+      println("offset" + block.offset + "blockSize" + block.length)
+      println(blockData.read(fetchedData, offset, block.length.asInstanceOf[Int]))
+      blockData.close()
+      offset += (block.length).asInstanceOf[Int]
     })
     println("completed copy")
-//    assert(fetchedData(1) === data(1))
+    assert(fetchedData != data)
   }
 
   override def afterAll = {

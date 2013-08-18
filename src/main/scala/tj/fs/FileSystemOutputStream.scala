@@ -73,7 +73,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
     val timestamp = System.currentTimeMillis()
     val iNode = INode(user, user, permissions, FileType.FILE, blocksMeta, timestamp)
     Await.ready(store.storeINode(path, iNode), 10 seconds)
-    blockOffset += subBlockSize.asInstanceOf[Int]
+    blockOffset += subBlockLengths.asInstanceOf[Int]
     subBlocksMeta = List()
     subBlockOffset = 0
     blockId = UUIDGen.getTimeUUID
