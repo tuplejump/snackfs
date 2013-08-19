@@ -10,9 +10,9 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
   private val iNode = Await.result(store.retrieveINode(path), 10 seconds)
   private val fileLength: Long = iNode.blocks.map(_.length).sum
 
-  private var position: Long = 0L
+  private var currentPosition: Long = 0L
 
-  private var inputStream: InputStream = null
+  private var blockStream: InputStream = null
 
   private var blockEndPosition: Long = -1
 
@@ -22,31 +22,28 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
     if (target > fileLength) {
       throw new IOException("Cannot seek after EOF")
     }
-    position = target
+    currentPosition = target
     blockEndPosition = -1
   }
 
-  def getPos: Long = position
+  def getPos: Long = currentPosition
 
   def seekToNewSource(targetPos: Long): Boolean = false
 
-  private def findBlock(target: Long): InputStream = {
+  private def findBlock(targetPosition: Long): InputStream = {
     val blockLengthTotals = iNode.blocks.scanLeft(0L)(_ + _.length).tail
-    val blockIndex = blockLengthTotals.indexWhere(p => target < p)
+    val blockIndex = blockLengthTotals.indexWhere(p => targetPosition < p)
     if (blockIndex == -1) {
-      throw new IOException("Impossible situation: could not find target position " + target)
+      throw new IOException("Impossible situation: could not find position " + targetPosition)
     }
-    var offset = target
+    var offset = targetPosition
     if (blockIndex != 0) {
       offset -= blockLengthTotals(blockIndex - 1)
     }
     val block = iNode.blocks(blockIndex)
-    position = target
+    currentPosition = targetPosition
     blockEndPosition = block.length - 1
-    val bis = store.retrieveBlock(block)
-    bis.skip(offset)
-    bis
-
+    store.retrieveBlock(block)
   }
 
   def read(): Int = {
@@ -55,51 +52,68 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
     }
     var result: Int = -1
 
-    if (position < fileLength) {
-      if (position > blockEndPosition) {
-        if (inputStream != null) {
-          inputStream.close
+    if (currentPosition < fileLength) {
+      if (currentPosition > blockEndPosition) {
+        if (blockStream != null) {
+          blockStream.close()
         }
-        inputStream = findBlock(position)
+        blockStream = findBlock(currentPosition)
       }
-      result = inputStream.read
+      result = blockStream.read
       if (result >= 0) {
-        position += 1
+        currentPosition += 1
       }
     }
     result
   }
 
-  override def available: Int = (fileLength - position).asInstanceOf[Int]
+  override def available: Int = (fileLength - currentPosition).asInstanceOf[Int]
 
   override def read(buf: Array[Byte], off: Int, len: Int): Int = {
     if (isClosed) {
       throw new IOException("Stream closed")
     }
+    if (buf == null) {
+      throw new NullPointerException
+    }
+    if ((off < 0) || (len < 0) || (len > buf.length - off)) {
+      throw new IndexOutOfBoundsException
+    }
 
-    var result: Int = -1
-    if (position < fileLength) {
-      if (position > blockEndPosition) {
-        if (inputStream != null) {
-          inputStream.close
+    var tempArray = Array[Byte]()
+    var result: Int = 0
+    if (len > 0) {
+      while (result < len && currentPosition <= fileLength - 1) {
+        if (currentPosition > blockEndPosition - 1) {
+          if (blockStream != null) {
+            blockStream.close()
+          }
+          blockStream = findBlock(currentPosition)
         }
-        inputStream = findBlock(position)
+        val realLen: Int = math.min(len - result, blockEndPosition + 1).asInstanceOf[Int]
+        val blockArray = new Array[Byte](realLen)
+        blockStream.read(blockArray, 0, realLen)
+        tempArray = tempArray ++ blockArray
+//        blockStream.read(buf, off + result, realLen)
+        result += realLen
+        currentPosition += realLen
       }
-      val realLen: Int = math.min(len, (blockEndPosition - position + 1).asInstanceOf[Int])
-      result = inputStream.read(buf, off, realLen)
-      if (result >= 0) {
-        position += result
+      if (result == 0) {
+        result = -1
+      }
+      else {
+        System.arraycopy(tempArray, 0, buf, off, len)
       }
     }
     result
   }
 
-  override def close = {
+  override def close() = {
     if (!isClosed) {
-      if (inputStream != null) {
-        inputStream.close
+      if (blockStream != null) {
+        blockStream.close()
       }
-      super.close
+      super.close()
       isClosed = true
     }
   }

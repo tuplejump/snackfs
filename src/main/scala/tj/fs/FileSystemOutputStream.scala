@@ -1,6 +1,6 @@
 package tj.fs
 
-import java.io.{FilePermission, IOException, OutputStream}
+import java.io.{IOException, OutputStream}
 import org.apache.hadoop.fs.Path
 import org.apache.cassandra.utils.UUIDGen
 import java.util.UUID
@@ -50,12 +50,12 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
       offsetTemp += lengthToWrite
       position += lengthToWrite
       if (position == subBlockSize) {
-        flush
+        flush()
       }
     }
   }
 
-  private def endSubBlock = {
+  private def endSubBlock() = {
     val subBlockMeta = SubBlockMeta(UUIDGen.getTimeUUID, subBlockOffset, position)
     Await.ready(store.storeSubBlock(blockId, subBlockMeta, outBuffer), 10 seconds)
     subBlockOffset += position
@@ -64,7 +64,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
     position = 0
   }
 
-  private def endBlock = {
+  private def endBlock() = {
     val subBlockLengths = subBlocksMeta.map(_.length).sum
     val block = BlockMeta(blockId, blockOffset, subBlockLengths, subBlocksMeta)
     blocksMeta = blocksMeta :+ block
@@ -80,21 +80,21 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
     bytesWrittenToBlock = 0
   }
 
-  override def flush = {
+  override def flush() = {
     if (isClosed) {
       throw new IOException("Stream closed")
     }
-    endSubBlock
+    endSubBlock()
     if (bytesWrittenToBlock >= blockSize || isClosing) {
-      endBlock
+      endBlock()
     }
   }
 
-  override def close = {
+  override def close() = {
     if (!isClosed) {
       isClosing = true
-      flush
-      super.close
+      flush()
+      super.close()
       isClosed = true
     }
   }

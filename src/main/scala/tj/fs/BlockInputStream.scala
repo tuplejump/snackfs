@@ -17,7 +17,7 @@ case class BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta) extend
     val subBlockLengthTotals = blockMeta.subBlocks.scanLeft(0L)(_ + _.length).tail
     val subBlockIndex = subBlockLengthTotals.indexWhere(p => targetPosition < p)
     if (subBlockIndex == -1) {
-      throw new IOException("Impossible situation: could not find targetPosition position " + targetPosition)
+      throw new IOException("Impossible situation: could not find position " + targetPosition)
     }
     var offset = targetPosition
     if (subBlockIndex != 0) {
