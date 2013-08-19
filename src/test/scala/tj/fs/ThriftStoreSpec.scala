@@ -44,22 +44,22 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
   val subBlockMeta1 = SubBlockMeta(UUID.randomUUID, 0, 128)
   val data = ByteBufferUtil.bytes("Test to store subBLock")
 
-  it should "create a keyspace with name RANDOM" in {
-    val ks = store.createKeyspace(store.buildSchema("RANDOM", 1))
+  it should "create a keyspace with name STORE" in {
+    val ks = store.createKeyspace(store.buildSchema("STORE", 1))
     val status = Await.result(ks, 5 seconds)
     assert(status.isInstanceOf[Keyspace])
   }
 
-  it should "throw KeyspaceAlreadyExistsException to create another keyspace RANDOM" in {
-    val ks = store.createKeyspace(store.buildSchema("RANDOM", 1))
+  it should "throw KeyspaceAlreadyExistsException to create another keyspace STORE" in {
+    val ks = store.createKeyspace(store.buildSchema("STORE", 1))
     val exception = intercept[KeyspaceAlreadyExistsException] {
       val status = Await.result(ks, 5 seconds)
     }
-    assert(exception.getMessage === "RANDOM keyspace already exists")
+    assert(exception.getMessage === "STORE keyspace already exists")
   }
 
-  it should "set keyspace to RANDOM" in {
-    val setKeyspaceFuture = AsyncUtil.executeAsync[set_keyspace_call](client.set_keyspace("RANDOM", _))
+  it should "set keyspace to STORE" in {
+    val setKeyspaceFuture = AsyncUtil.executeAsync[set_keyspace_call](client.set_keyspace("STORE", _))
     val result = Await.result(setKeyspaceFuture, 5 seconds)
     assert(result != "")
   }
@@ -97,7 +97,7 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
   }
 
   override def afterAll() = {
-    Await.ready(AsyncUtil.executeAsync[system_drop_keyspace_call](client.system_drop_keyspace("RANDOM", _)), 10 seconds)
+    Await.ready(AsyncUtil.executeAsync[system_drop_keyspace_call](client.system_drop_keyspace("STORE", _)), 10 seconds)
     clientManager.stop()
   }
 

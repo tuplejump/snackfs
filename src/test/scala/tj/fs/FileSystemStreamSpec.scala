@@ -16,7 +16,7 @@ import java.nio.file.{FileSystems, Files}
 import org.apache.commons.io.IOUtils
 import org.scalatest.matchers.MustMatchers
 
-class FileSystemOutputStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
+class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   val clientManager = new TAsyncClientManager()
   val protocolFactory = new TBinaryProtocol.Factory()
   val transport = new TNonblockingSocket("127.0.0.1", 9160)
@@ -25,8 +25,8 @@ class FileSystemOutputStreamSpec extends FlatSpec with BeforeAndAfterAll with Mu
 
   val store = new ThriftStore(client)
 
-  Await.result(store.createKeyspace(store.buildSchema("RANDOM", 1)), 5 seconds)
-  Await.result(AsyncUtil.executeAsync[set_keyspace_call](client.set_keyspace("RANDOM", _)), 5 seconds)
+  Await.result(store.createKeyspace(store.buildSchema("STREAM", 1)), 5 seconds)
+  Await.result(AsyncUtil.executeAsync[set_keyspace_call](client.set_keyspace("STREAM", _)), 5 seconds)
 
   it should "fetch data which is equal to actual data" in {
     val pathURI = URI.create("outputStream.txt")
@@ -186,7 +186,7 @@ class FileSystemOutputStreamSpec extends FlatSpec with BeforeAndAfterAll with Mu
   }
 
   override def afterAll() = {
-    Await.ready(AsyncUtil.executeAsync[system_drop_keyspace_call](client.system_drop_keyspace("RANDOM", _)), 10 seconds)
+    Await.ready(AsyncUtil.executeAsync[system_drop_keyspace_call](client.system_drop_keyspace("STREAM", _)), 10 seconds)
     clientManager.stop()
   }
 
