@@ -19,8 +19,10 @@ import java.net.URI
 import org.apache.hadoop.fs.Path
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.apache.cassandra.utils.ByteBufferUtil
+import org.apache.commons.io.IOUtils
+import org.scalatest.matchers.MustMatchers
 
-class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll {
+class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
   val clientManager = new TAsyncClientManager()
   val protocolFactory = new TBinaryProtocol.Factory()
@@ -87,34 +89,14 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll {
     assert(updatedBlock.subBlocks.length === block1.subBlocks.length + 1)
   }
 
-  def convertStreamToString(inputStream: java.io.InputStream): String = {
-    val scanner = new java.util.Scanner(inputStream).useDelimiter("\\A")
-    if (scanner.hasNext()) {
-      scanner.next()
-    }
-    else ""
-  }
-
   it should "fetch created subBlock" in {
     val storeResponse = store.retrieveSubBlock(block1, subBlockMeta1, 0)
     val response = Await.result(storeResponse, 10 seconds)
-    val responseString = convertStreamToString(response)
-    assert(responseString === new String(data.array()))
+    val responseString =  new String(IOUtils.toByteArray(response))
+    responseString must be(new String(data.array()))
   }
 
-  it should "fetch block1" in {
-    val pathURI = URI.create("Blocktest.txt")
-    val path = new Path(pathURI)
-    val subBlockMeta1 = SubBlockMeta(UUID.randomUUID, 0, 128)
-    val block1 = BlockMeta(UUID.randomUUID, 0, 128, List(subBlockMeta1))
-    val iNode = INode("user", "group", FsPermission.getDefault, FileType.FILE, List(), timestamp)
-    Await.result(store.storeSubBlockAndUpdateINode(path, iNode, block1, subBlockMeta1, data), 10 seconds)
-    val result = store.retrieveBlock(block1)
-    val resultString = convertStreamToString(result)
-    assert(resultString === new String(data.array()))
-  }
-
-  override def afterAll = {
+  override def afterAll() = {
     Await.ready(AsyncUtil.executeAsync[system_drop_keyspace_call](client.system_drop_keyspace("RANDOM", _)), 10 seconds)
     clientManager.stop()
   }

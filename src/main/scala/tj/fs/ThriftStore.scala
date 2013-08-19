@@ -35,7 +35,7 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
   private val consistencyLevelRead = ConsistencyLevel.QUORUM
 
   def createKeyspace(ksDef: KsDef): Future[Keyspace] = {
-    val prom = promise[Keyspace]
+    val prom = promise[Keyspace]()
     val ksDefFuture = AsyncUtil.executeAsync[describe_keyspace_call](client.describe_keyspace(ksDef.getName, _))
 
     ksDefFuture onSuccess {
@@ -165,7 +165,7 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
     val timestamp = iNode.timestamp
     val mutationMap: Map[ByteBuffer, java.util.Map[String, java.util.List[Mutation]]] = generateMutationforINode(data, path, timestamp)
     val iNodeFuture = AsyncUtil.executeAsync[batch_mutate_call](client.batch_mutate(mutationMap, consistencyLevelWrite, _))
-    val prom = promise[GenericOpSuccess]
+    val prom = promise[GenericOpSuccess]()
     iNodeFuture.onSuccess {
       case p => {
         prom success GenericOpSuccess()
@@ -178,7 +178,7 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
   }
 
   private def performGet(key: ByteBuffer, columnPath: ColumnPath, consistency: ConsistencyLevel): Future[ColumnOrSuperColumn] = {
-    val prom = promise[ColumnOrSuperColumn]
+    val prom = promise[ColumnOrSuperColumn]()
     val getFuture = AsyncUtil.executeAsync[get_call](client.get(key, columnPath, consistency, _))
     getFuture.onSuccess {
       case p => prom success p.getResult
@@ -193,7 +193,7 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
     val pathKey: ByteBuffer = getPathKey(path)
     val inodeDataPath = new ColumnPath("inode").setColumn(dataCol)
 
-    val inodePromise = promise[INode]
+    val inodePromise = promise[INode]()
     val pathInfo = performGet(pathKey, inodeDataPath, consistencyLevelRead)
     pathInfo.onSuccess {
       case p => inodePromise success INode.deserialize(ByteBufferUtil.inputStream(p.column.value), p.column.getTimestamp)
@@ -230,7 +230,7 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
       .setValue(data)
       .setTimestamp(System.currentTimeMillis)
 
-    val prom = promise[GenericOpSuccess]
+    val prom = promise[GenericOpSuccess]()
     val subBlockFuture = AsyncUtil.executeAsync[insert_call](
       client.insert(parentBlockId, sblockParent, column, consistencyLevelWrite, _))
 
@@ -247,7 +247,7 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
     val blockId: ByteBuffer = ByteBufferUtil.bytes(blockMeta.id)
     val subBlockId = ByteBufferUtil.bytes(subBlockMeta.id)
     val subBlockFuture = performGet(blockId, new ColumnPath("sblock").setColumn(subBlockId), consistencyLevelRead)
-    val prom = promise[InputStream]
+    val prom = promise[InputStream]()
     subBlockFuture.onSuccess {
       case p => prom success ByteBufferUtil.inputStream(p.column.value)
     }
@@ -259,7 +259,7 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
 
   def storeSubBlockAndUpdateINode(path: Path, iNode: INode, block: BlockMeta, subBlockMeta: SubBlockMeta, data: ByteBuffer): Future[GenericOpSuccess] = {
     val subBLockResponse = storeSubBlock(block.id, subBlockMeta, data)
-    val prom = promise[GenericOpSuccess]
+    val prom = promise[GenericOpSuccess]()
     subBLockResponse.onSuccess {
       case res => {
         val timestamp = System.currentTimeMillis()
@@ -280,6 +280,6 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
   }
 
   def retrieveBlock(blockMeta: BlockMeta): InputStream = {
-    SubBlockInputStream(this, blockMeta)
+    BlockInputStream(this, blockMeta)
   }
 }
