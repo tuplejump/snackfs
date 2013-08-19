@@ -67,7 +67,7 @@ case class BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta) extend
           }
           inputStream = findSubBlock(currentPosition)
         }
-        val remaining = len - (off + result)
+        val remaining = len - result
         val size = math.min(remaining, targetSubBlockSize)
         val readSize = inputStream.read(buf, off + result, size.asInstanceOf[Int])
         result += readSize

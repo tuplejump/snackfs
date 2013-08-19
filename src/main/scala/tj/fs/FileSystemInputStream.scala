@@ -80,7 +80,6 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
       throw new IndexOutOfBoundsException
     }
 
-    var tempArray = Array[Byte]()
     var result: Int = 0
     if (len > 0) {
       while (result < len && currentPosition <= fileLength - 1) {
@@ -91,18 +90,12 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
           blockStream = findBlock(currentPosition)
         }
         val realLen: Int = math.min(len - result, blockEndPosition + 1).asInstanceOf[Int]
-        val blockArray = new Array[Byte](realLen)
-        blockStream.read(blockArray, 0, realLen)
-        tempArray = tempArray ++ blockArray
-//        blockStream.read(buf, off + result, realLen)
-        result += realLen
-        currentPosition += realLen
+        var readSize = blockStream.read(buf, off + result, realLen)
+        result += readSize
+        currentPosition += readSize
       }
       if (result == 0) {
         result = -1
-      }
-      else {
-        System.arraycopy(tempArray, 0, buf, off, len)
       }
     }
     result
