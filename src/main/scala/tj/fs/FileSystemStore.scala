@@ -21,10 +21,11 @@ trait FileSystemStore {
 
   def storeSubBlock(blockId: UUID, subBlockMeta: SubBlockMeta, data: ByteBuffer): Future[GenericOpSuccess]
 
-  def retrieveSubBlock(blockMeta: BlockMeta, subBlockMeta: SubBlockMeta, byteRangeStart: Long):Future[InputStream]
+  def retrieveSubBlock(blockMeta: BlockMeta, subBlockMeta: SubBlockMeta, byteRangeStart: Long): Future[InputStream]
 
-  def storeSubBlockAndUpdateINode(path: Path, iNode: INode,block:BlockMeta,subBlockMeta: SubBlockMeta, data: ByteBuffer): Future[GenericOpSuccess]
+  def storeSubBlockAndUpdateINode(path: Path, iNode: INode, block: BlockMeta, subBlockMeta: SubBlockMeta, data: ByteBuffer): Future[GenericOpSuccess]
 
-  def retrieveBlock (blockMeta:BlockMeta):InputStream
+  def retrieveBlock(blockMeta: BlockMeta): InputStream
 
+//  def deleteINode(path: Path): Future[GenericOpSuccess]
 }

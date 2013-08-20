@@ -11,7 +11,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import org.apache.cassandra.thrift._
 import scala.collection.JavaConversions._
 import java.nio.ByteBuffer
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 import tj.exceptions.KeyspaceAlreadyExistsException
 import tj.model._
 import org.apache.cassandra.locator.SimpleStrategy
@@ -177,11 +177,21 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
     prom.future
   }
 
-  private def performGet(key: ByteBuffer, columnPath: ColumnPath, consistency: ConsistencyLevel): Future[ColumnOrSuperColumn] = {
+  private def performGet(key: ByteBuffer,
+                         columnPath: ColumnPath,
+                         consistency: ConsistencyLevel): Future[ColumnOrSuperColumn] = {
+
     val prom = promise[ColumnOrSuperColumn]()
     val getFuture = AsyncUtil.executeAsync[get_call](client.get(key, columnPath, consistency, _))
     getFuture.onSuccess {
-      case p => prom success p.getResult
+      case p =>
+        try {
+          val res = p.getResult
+          prom success res
+        } catch {
+          case e =>
+            prom failure e
+        }
     }
     getFuture.onFailure {
       case f => prom failure f
@@ -196,32 +206,18 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
     val inodePromise = promise[INode]()
     val pathInfo = performGet(pathKey, inodeDataPath, consistencyLevelRead)
     pathInfo.onSuccess {
-      case p => inodePromise success INode.deserialize(ByteBufferUtil.inputStream(p.column.value), p.column.getTimestamp)
+      case p =>
+        inodePromise success INode.deserialize(ByteBufferUtil.inputStream(p.column.value), p.column.getTimestamp)
     }
     pathInfo.onFailure {
-      case f => inodePromise failure f
+      case f =>
+        inodePromise failure f
     }
     inodePromise.future
   }
 
-  private def compressData(data: ByteBuffer): ByteBuffer = {
-    //Prepare the buffer to hold the compressed data
-    val maxCapacity: Int = Snappy.maxCompressedLength(data.capacity)
-    val compressedData = ByteBuffer.allocateDirect(maxCapacity)
-    compressedData.limit(compressedData.capacity)
-    compressedData.rewind
-
-    //compress
-    val len: Int = Snappy.compress(data, compressedData)
-    compressedData.limit(len)
-    compressedData.rewind
-    compressedData
-  }
-
   def storeSubBlock(blockId: UUID, subBlockMeta: SubBlockMeta, data: ByteBuffer): Future[GenericOpSuccess] = {
     val parentBlockId: ByteBuffer = ByteBufferUtil.bytes(blockId)
-
-    //    val compressedData = compressData(data)
 
     val sblockParent = new ColumnParent("sblock")
 
@@ -250,6 +246,10 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
     val prom = promise[InputStream]()
     subBlockFuture.onSuccess {
       case p => prom success ByteBufferUtil.inputStream(p.column.value)
+      //      case mayBeSubBlock => mayBeSubBlock match {
+      //        case Success(p) => prom success ByteBufferUtil.inputStream(p.column.value)
+      //        case Failure(e) => prom failure e
+      //      }
     }
     subBlockFuture.onFailure {
       case f => prom failure f
@@ -282,4 +282,19 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
   def retrieveBlock(blockMeta: BlockMeta): InputStream = {
     BlockInputStream(this, blockMeta)
   }
+
+  /*private def delete
+  def deleteINode(path: Path): Future[GenericOpSuccess] = {
+    val pathKey = getPathKey(path)
+    val iNodeColumnPath = new ColumnPath("inode")
+    val timestamp =System.currentTimeMillis
+
+    val result = promise[GenericOpSuccess]()
+
+    val deleteInodeFuture = AsyncUtil.executeAsync[remove_call](client.remove(pathKey,iNodeColumnPath,timestamp,consistencyLevelWrite,_))
+    deleteInodeFuture.onSuccess{
+      case p =>
+    }
+    result.future
+  }*/
 }
