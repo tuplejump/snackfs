@@ -14,7 +14,7 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
 
   private var blockStream: InputStream = null
 
-  private var blockEndPosition: Long = -1
+  private var currentBlockSize: Long = -1
 
   private var isClosed: Boolean = false
 
@@ -23,7 +23,7 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
       throw new IOException("Cannot seek after EOF")
     }
     currentPosition = target
-    blockEndPosition = -1
+    currentBlockSize = -1
   }
 
   def getPos: Long = currentPosition
@@ -31,19 +31,17 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
   def seekToNewSource(targetPos: Long): Boolean = false
 
   private def findBlock(targetPosition: Long): InputStream = {
-    val blockLengthTotals = iNode.blocks.scanLeft(0L)(_ + _.length).tail
-    val blockIndex = blockLengthTotals.indexWhere(p => targetPosition < p)
+    val blockIndex = iNode.blocks.indexWhere(b => b.offset + b.length > targetPosition)
     if (blockIndex == -1) {
       throw new IOException("Impossible situation: could not find position " + targetPosition)
     }
-    var offset = targetPosition
-    if (blockIndex != 0) {
-      offset -= blockLengthTotals(blockIndex - 1)
-    }
     val block = iNode.blocks(blockIndex)
     currentPosition = targetPosition
-    blockEndPosition = block.length - 1
-    store.retrieveBlock(block)
+    currentBlockSize = block.length
+    val offset = targetPosition - block.offset
+    val bis = store.retrieveBlock(block)
+    bis.skip(offset)
+    bis
   }
 
   def read(): Int = {
@@ -53,7 +51,7 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
     var result: Int = -1
 
     if (currentPosition < fileLength) {
-      if (currentPosition > blockEndPosition) {
+      if (currentPosition > currentBlockSize) {
         if (blockStream != null) {
           blockStream.close()
         }
@@ -83,13 +81,13 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
     var result: Int = 0
     if (len > 0) {
       while (result < len && currentPosition <= fileLength - 1) {
-        if (currentPosition > blockEndPosition - 1) {
+        if (currentPosition > currentBlockSize - 1) {
           if (blockStream != null) {
             blockStream.close()
           }
           blockStream = findBlock(currentPosition)
         }
-        val realLen: Int = math.min(len - result, blockEndPosition + 1).asInstanceOf[Int]
+        val realLen: Int = math.min(len - result, currentBlockSize + 1).asInstanceOf[Int]
         var readSize = blockStream.read(buf, off + result, realLen)
         result += readSize
         currentPosition += readSize
