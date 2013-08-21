@@ -23,9 +23,9 @@ trait FileSystemStore {
 
   def retrieveSubBlock(blockMeta: BlockMeta, subBlockMeta: SubBlockMeta, byteRangeStart: Long): Future[InputStream]
 
-  def storeSubBlockAndUpdateINode(path: Path, iNode: INode, block: BlockMeta, subBlockMeta: SubBlockMeta, data: ByteBuffer): Future[GenericOpSuccess]
-
   def retrieveBlock(blockMeta: BlockMeta): InputStream
 
   def deleteINode(path: Path): Future[GenericOpSuccess]
+
+  def deleteBlocks(iNode: INode): Future[GenericOpSuccess]
 }

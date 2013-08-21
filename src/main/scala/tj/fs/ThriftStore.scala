@@ -10,15 +10,15 @@ import scala.concurrent._
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.apache.cassandra.thrift._
 import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import java.nio.ByteBuffer
-import scala.util.{Failure, Success, Try}
+import scala.util.Try
 import tj.exceptions.KeyspaceAlreadyExistsException
 import tj.model._
 import org.apache.cassandra.locator.SimpleStrategy
 import org.apache.hadoop.fs.Path
 import java.math.BigInteger
 import java.util.UUID
-import org.xerial.snappy.Snappy
 import tj.model.SubBlockMeta
 import tj.model.GenericOpSuccess
 import java.io.InputStream
@@ -239,6 +239,7 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
     prom.future
   }
 
+  //TODO change this to accept just the blockId and subBlockId
   def retrieveSubBlock(blockMeta: BlockMeta, subBlockMeta: SubBlockMeta, byteRangeStart: Long): Future[InputStream] = {
     val blockId: ByteBuffer = ByteBufferUtil.bytes(blockMeta.id)
     val subBlockId = ByteBufferUtil.bytes(subBlockMeta.id)
@@ -249,28 +250,6 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
     }
     subBlockFuture.onFailure {
       case f => prom failure f
-    }
-    prom.future
-  }
-
-  def storeSubBlockAndUpdateINode(path: Path, iNode: INode, block: BlockMeta, subBlockMeta: SubBlockMeta, data: ByteBuffer): Future[GenericOpSuccess] = {
-    val subBLockResponse = storeSubBlock(block.id, subBlockMeta, data)
-    val prom = promise[GenericOpSuccess]()
-    subBLockResponse.onSuccess {
-      case res => {
-        val timestamp = System.currentTimeMillis()
-        val updatedSubBlockMetaList = block.subBlocks ++ List(subBlockMeta)
-        val otherBlocks = iNode.blocks.filter(b => b.id != block.id)
-        val updatedBlockMeta = BlockMeta(block.id, block.offset, block.length + subBlockMeta.length, updatedSubBlockMetaList)
-        val updatedINode = INode(iNode.user, iNode.group, iNode.permission, iNode.fileType, otherBlocks ++ List(updatedBlockMeta), timestamp)
-        val storeReq = storeINode(path, updatedINode)
-        storeReq.onSuccess {
-          case p => prom success p
-        }
-        storeReq.onFailure {
-          case f => prom failure f
-        }
-      }
     }
     prom.future
   }
@@ -297,4 +276,31 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
     }
     result.future
   }
+
+  def deleteBlocks(inode: INode): Future[GenericOpSuccess] = {
+    val timestamp = System.currentTimeMillis()
+    val deletion = new Deletion()
+    deletion.setTimestamp(timestamp)
+
+    val mmap: Map[ByteBuffer, java.util.Map[String, java.util.List[Mutation]]] = inode.blocks.map {
+      block =>
+        (ByteBufferUtil.bytes(block.id), Map("sblock" -> List(new Mutation().setDeletion(deletion)).asJava).asJava)
+    }.toMap
+
+    val result = promise[GenericOpSuccess]()
+
+    val deleteFuture = AsyncUtil.executeAsync[batch_mutate_call](client.batch_mutate(mmap, consistencyLevelWrite, _))
+    deleteFuture.onSuccess {
+      case p => {
+        result success GenericOpSuccess()
+      }
+    }
+    deleteFuture.onFailure {
+      case f => {
+        result failure f
+      }
+    }
+    result.future
+  }
+
 }

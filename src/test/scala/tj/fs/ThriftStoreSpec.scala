@@ -21,6 +21,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import org.apache.cassandra.utils.ByteBufferUtil
 import org.apache.commons.io.IOUtils
 import org.scalatest.matchers.MustMatchers
+import org.apache.cassandra.thrift.NotFoundException
 
 class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
@@ -77,23 +78,39 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
     assert(result === iNode)
   }
 
-  it should "update INode on storing subBlock" in {
-    val storeResponse = store.storeSubBlockAndUpdateINode(path, iNode, block1, subBlockMeta1, data)
-    val response = Await.result(storeResponse, 10 seconds)
-    assert(response === GenericOpSuccess())
-    val fetchedINode = store.retrieveINode(path)
-    val result: INode = Await.result(fetchedINode, 10 seconds)
-    assert(result.user === "user")
-    val updatedBlock = result.blocks.filter(p => p.id == block1.id).head
-    assert(updatedBlock.length === block1.length + subBlockMeta1.length)
-    assert(updatedBlock.subBlocks.length === block1.subBlocks.length + 1)
-  }
-
   it should "fetch created subBlock" in {
+    Await.ready(store.storeSubBlock(block1.id, subBlockMeta1, data), 10 seconds)
     val storeResponse = store.retrieveSubBlock(block1, subBlockMeta1, 0)
     val response = Await.result(storeResponse, 10 seconds)
-    val responseString =  new String(IOUtils.toByteArray(response))
+    val responseString = new String(IOUtils.toByteArray(response))
     responseString must be(new String(data.array()))
+  }
+
+  it should "delete all the blocks of an Inode" in {
+    val blockId = UUID.randomUUID
+    val blockIdSecond = UUID.randomUUID
+
+    val subBlock = SubBlockMeta(UUID.randomUUID, 0, 128)
+    val subBlockSecond = SubBlockMeta(UUID.randomUUID, 0, 128)
+
+    Await.result(store.storeSubBlock(blockId, subBlock, ByteBufferUtil.bytes("Random test data")), 10 seconds)
+    Await.result(store.storeSubBlock(blockIdSecond, subBlockSecond, ByteBufferUtil.bytes("Random test data")), 10 seconds)
+
+    val blockMeta = BlockMeta(blockId, 0, 0, List(subBlock))
+    val blockMetaSecond = BlockMeta(blockId, 0, 0, List(subBlock))
+
+    val subBlockData = Await.result(store.retrieveSubBlock(blockMeta, subBlock, 0), 10 seconds)
+    val dataString = new String(IOUtils.toByteArray(subBlockData))
+    dataString must be("Random test data")
+
+    val iNode = INode("user", "group", FsPermission.getDefault, FileType.FILE, List(blockMeta, blockMetaSecond), timestamp)
+
+    Await.ready(store.deleteBlocks(iNode), 10 seconds)
+
+    val exception = intercept[NotFoundException] {
+      val subBlockData = Await.result(store.retrieveSubBlock(blockMeta, subBlock, 0), 10 seconds)
+    }
+    assert(exception.getMessage === null)
   }
 
   override def afterAll() = {
