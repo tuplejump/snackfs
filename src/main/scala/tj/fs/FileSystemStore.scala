@@ -27,5 +27,5 @@ trait FileSystemStore {
 
   def retrieveBlock(blockMeta: BlockMeta): InputStream
 
-//  def deleteINode(path: Path): Future[GenericOpSuccess]
+  def deleteINode(path: Path): Future[GenericOpSuccess]
 }

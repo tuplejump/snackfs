@@ -5,7 +5,7 @@ import java.net.URI
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
 import org.apache.hadoop.conf.Configuration
-import java.io.IOException
+import java.io.{FileNotFoundException, IOException}
 import scala.concurrent.{ExecutionContext, Await}
 import scala.concurrent.duration._
 import tj.model.{FileType, INode}
@@ -40,6 +40,12 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
   }
 
   def getUri: URI = systemURI
+
+  def setWorkingDirectory(newDir: Path) = {
+    currentDirectory = makeAbsolute(newDir)
+  }
+
+  def getWorkingDirectory: Path = currentDirectory
 
   def open(path: Path, bufferSize: Int): FSDataInputStream = {
     val mayBeiNode = Try(Await.result(store.retrieveINode(path), 10 seconds))
@@ -92,10 +98,8 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
 
     val mayBeiNode = Try(Await.result(store.retrieveINode(filePath), 10 seconds))
     mayBeiNode match {
-      case Success(p) => if (p.isFile) {
-        if (overwrite) {
-          //OVERWRTIE THE FILE
-        } else {
+      case Success(p) => {
+        if (p.isFile && !overwrite) {
           throw new IOException("File exists and cannot be overwritten")
         }
       }
@@ -114,17 +118,71 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
     throw new IOException("Appending to existing file is not supported.")
   }
 
+  private def length(iNode: INode): Long = {
+    var result = 0L
+    if (iNode.isFile) {
+      result = iNode.blocks.map(_.length).sum
+    }
+    result
+  }
+
+  private def blockSize(iNode: INode): Long = {
+    var result = 0L
+    if (iNode.blocks != null && iNode.blocks.length > 0) {
+      result = iNode.blocks(0).length
+    }
+    result
+  }
+
+  private case class SnackFileStatus(iNode: INode, path: Path) extends FileStatus(length(iNode), iNode.isDirectory, 0,
+    blockSize(iNode), iNode.timestamp, 0, iNode.permission, iNode.user, iNode.group, path: Path) {
+  }
+
+  def getFileStatus(path: Path): FileStatus = {
+    val maybeInode = Try(Await.result(store.retrieveINode(path), 10 seconds))
+    maybeInode match {
+      case Success(iNode: INode) => SnackFileStatus(iNode, path)
+      case Failure(e) => throw new FileNotFoundException("No such file exists")
+    }
+  }
+
+  override def getFileBlockLocations(fileStatus: FileStatus, start: Long, length: Long) = {
+    var result: Array[BlockLocation] = null
+    if (fileStatus != null) {
+
+      if (!fileStatus.isInstanceOf[SnackFileStatus]) {
+        super.getFileBlockLocations(fileStatus, start, length)
+      }
+      else {
+        if (start < 0 || length < 0) {
+          throw new IllegalArgumentException("Invalid start or length parameter")
+        }
+        else if (fileStatus.getLen > 0) {
+          val iNode = fileStatus.asInstanceOf[SnackFileStatus].iNode
+          val end = start + length
+
+          val usedBlocks = iNode.blocks.filter(block =>
+            ((start >= block.offset && start < (block.offset + block.length)) ||
+              (end >= block.offset && end < (block.offset + block.length))) ||
+
+              ((block.offset >= start && block.offset < end) ||
+                ((block.offset + block.length) >= start && (block.offset + block.length) < end)))
+
+          if (!usedBlocks.isEmpty) {
+            result = usedBlocks.map(block => {
+              val offset = if (usedBlocks.indexOf(block) == 0) start else block.offset
+              new BlockLocation(null, null, offset, block.length)
+            }).toArray
+          }
+        }
+      }
+    }
+    result
+  }
+
   def rename(src: Path, dst: Path): Boolean = false
 
   def delete(path: Path, recursive: Boolean): Boolean = false
 
   def listStatus(path: Path): Array[FileStatus] = null
-
-  def setWorkingDirectory(newDir: Path) = {
-    currentDirectory = makeAbsolute(newDir)
-  }
-
-  def getWorkingDirectory: Path = currentDirectory
-
-  def getFileStatus(path: Path): FileStatus = null
 }

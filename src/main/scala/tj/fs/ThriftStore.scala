@@ -246,10 +246,6 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
     val prom = promise[InputStream]()
     subBlockFuture.onSuccess {
       case p => prom success ByteBufferUtil.inputStream(p.column.value)
-      //      case mayBeSubBlock => mayBeSubBlock match {
-      //        case Success(p) => prom success ByteBufferUtil.inputStream(p.column.value)
-      //        case Failure(e) => prom failure e
-      //      }
     }
     subBlockFuture.onFailure {
       case f => prom failure f
@@ -283,18 +279,22 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
     BlockInputStream(this, blockMeta)
   }
 
-  /*private def delete
   def deleteINode(path: Path): Future[GenericOpSuccess] = {
     val pathKey = getPathKey(path)
     val iNodeColumnPath = new ColumnPath("inode")
-    val timestamp =System.currentTimeMillis
+    val timestamp = System.currentTimeMillis
 
     val result = promise[GenericOpSuccess]()
 
-    val deleteInodeFuture = AsyncUtil.executeAsync[remove_call](client.remove(pathKey,iNodeColumnPath,timestamp,consistencyLevelWrite,_))
-    deleteInodeFuture.onSuccess{
-      case p =>
+    val deleteInodeFuture = AsyncUtil.executeAsync[remove_call](
+      client.remove(pathKey, iNodeColumnPath, timestamp, consistencyLevelWrite, _))
+
+    deleteInodeFuture.onSuccess {
+      case p => result success GenericOpSuccess()
+    }
+    deleteInodeFuture.onFailure {
+      case f => result failure f
     }
     result.future
-  }*/
+  }
 }
