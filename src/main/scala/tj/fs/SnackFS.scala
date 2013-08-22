@@ -20,7 +20,7 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
   private var currentDirectory: Path = null
   private var subBlockSize: Long = 0L
 
-  private val ATMOST: FiniteDuration = 10 seconds
+  private val AT_MOST: FiniteDuration = 10 seconds
 
   override def initialize(uri: URI, configuration: Configuration) = {
     super.initialize(uri, configuration)
@@ -50,7 +50,7 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
   def getWorkingDirectory: Path = currentDirectory
 
   def open(path: Path, bufferSize: Int): FSDataInputStream = {
-    val mayBeiNode = Try(Await.result(store.retrieveINode(path), ATMOST))
+    val mayBeiNode = Try(Await.result(store.retrieveINode(path), AT_MOST))
 
     mayBeiNode match {
       case Success(inode) => {
@@ -66,39 +66,41 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
     }
   }
 
-  private def mkdir(path: Path, permission: FsPermission): Any = {
-    val mayBeiNode = Try(Await.result(store.retrieveINode(path), ATMOST))
+  private def mkdir(path: Path, permission: FsPermission): Boolean = {
+    val mayBeiNode = Try(Await.result(store.retrieveINode(path), AT_MOST))
 
+    var result = true
     mayBeiNode match {
       case Success(inode) =>
         if (inode.isFile) {
-          throw new IOException("Can't make a directory for path %s since its a file".format(path))
+          result = false //Can't make a directory for path since its a file
         }
-
-      case Failure(e: NotFoundException) =>
+      case Failure(e) =>
         val user = System.getProperty("user.name", "none")
         val timestamp = System.currentTimeMillis()
         val iNode = INode(user, user, permission, FileType.DIRECTORY, null, timestamp)
-        Await.ready(store.storeINode(path, iNode), ATMOST)
+        Await.ready(store.storeINode(path, iNode), AT_MOST)
     }
+    result
   }
 
   def mkdirs(path: Path, permission: FsPermission): Boolean = {
     var absolutePath = makeAbsolute(path)
     var paths = List[Path]()
+    var result = true
     while (absolutePath != null) {
       paths = paths :+ absolutePath
       absolutePath = absolutePath.getParent
     }
-    paths.foreach(p => mkdir(p, permission))
-    true
+    result = paths.map(p => mkdir(p, permission)).reduce(_ && _)
+    result
   }
 
   def create(filePath: Path, permission: FsPermission, overwrite: Boolean,
              bufferSize: Int, replication: Short, blockSize: Long,
              progress: Progressable): FSDataOutputStream = {
 
-    val mayBeiNode = Try(Await.result(store.retrieveINode(filePath), ATMOST))
+    val mayBeiNode = Try(Await.result(store.retrieveINode(filePath), AT_MOST))
     mayBeiNode match {
       case Success(p) => {
         if (p.isFile && !overwrite) {
@@ -141,7 +143,7 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
   }
 
   def getFileStatus(path: Path): FileStatus = {
-    val maybeInode = Try(Await.result(store.retrieveINode(path), ATMOST))
+    val maybeInode = Try(Await.result(store.retrieveINode(path), AT_MOST))
     maybeInode match {
       case Success(iNode: INode) => SnackFileStatus(iNode, path)
       case Failure(e) => throw new FileNotFoundException("No such file exists")
@@ -159,7 +161,10 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
         if (start < 0 || length < 0) {
           throw new IllegalArgumentException("Invalid start or length parameter")
         }
-        else if (fileStatus.getLen > 0) {
+        if (fileStatus.getLen < start) {
+          result = Array(new BlockLocation())
+        }
+        else {
           val iNode = fileStatus.asInstanceOf[SnackFileStatus].iNode
           val end = start + length
 
@@ -171,9 +176,13 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
                 ((block.offset + block.length) >= start && (block.offset + block.length) < end)))
 
           if (!usedBlocks.isEmpty) {
+            /* check name and host */
+            val name: Array[String] = Array("localhost:50010")
+            val host: Array[String] = Array("localhost")
+
             result = usedBlocks.map(block => {
               val offset = if (usedBlocks.indexOf(block) == 0) start else block.offset
-              new BlockLocation(null, null, offset, block.length)
+              new BlockLocation(name, host, offset, block.length)
             }).toArray
           }
         }
@@ -184,27 +193,55 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
 
   def delete(path: Path, recursive: Boolean): Boolean = {
     val absolutePath = makeAbsolute(path)
-    val mayBeiNode = Try(Await.result(store.retrieveINode(absolutePath), ATMOST))
+    val mayBeiNode = Try(Await.result(store.retrieveINode(absolutePath), AT_MOST))
+    var result = true
     mayBeiNode match {
-      case Success(iNode:INode) =>
-        if(iNode.isFile){
-          val iNodeDeleted = Await.result(store.deleteINode(absolutePath),ATMOST)
-          val blocksDeleted = Await.result(store.deleteBlocks(iNode),ATMOST)
+      case Success(iNode: INode) =>
+        if (iNode.isFile) {
+          Await.ready(store.deleteINode(absolutePath), AT_MOST)
+          Await.ready(store.deleteBlocks(iNode), AT_MOST)
         }
-        else{
-          if(!recursive){
-            throw new IOException("Cannot delete Directory as it is not empty")
-          }
-          else {
-              //TODO
-          }
+        else {
+          // TODO check if dir is empty and/or recursive is true
         }
-      case Failure(e) => throw new IOException("No such file.")
+      case Failure(e) => result = false //No such file
+    }
+    result
+  }
+
+  def rename(src: Path, dst: Path): Boolean = {
+    val srcPath = makeAbsolute(src)
+    val mayBeSrcINode = Try(Await.result(store.retrieveINode(srcPath), AT_MOST))
+    mayBeSrcINode match {
+      case Failure(e1) => throw new IOException("No such file or directory.")
+      case Success(iNode: INode) =>
+        val dstPath = makeAbsolute(dst)
+        val mayBeDstINode = Try(Await.result(store.retrieveINode(dstPath), AT_MOST))
+        mayBeDstINode match {
+          case Failure(e) => {
+            val maybeDstParent = Try(Await.result(store.retrieveINode(dst.getParent), AT_MOST))
+            maybeDstParent match {
+              case Failure(e2) => throw new IOException("Destination directory does not exist.")
+              case Success(dstParentINode: INode) => {
+                if (dstParentINode.isFile) {
+                  throw new IOException("A file exists with parent of destination.")
+                }
+                if (iNode.isFile) {
+                  Await.ready(store.deleteINode(srcPath), AT_MOST)
+                  Await.ready(store.storeINode(dstPath, iNode), AT_MOST)
+                }
+                else {
+                  //TODO rename directory
+                }
+              }
+            }
+          }
+          case Success(dstINode: INode) =>
+            throw new IOException("A file or directory exists at %s, cannot overwrite".format(dst))
+        }
     }
     true
   }
-
-  def rename(src: Path, dst: Path): Boolean = false
 
   def listStatus(path: Path): Array[FileStatus] = null
 }
