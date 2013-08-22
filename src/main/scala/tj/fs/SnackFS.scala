@@ -8,7 +8,7 @@ import org.apache.hadoop.conf.Configuration
 import java.io.{FileNotFoundException, IOException}
 import scala.concurrent.{ExecutionContext, Await}
 import scala.concurrent.duration._
-import tj.model.{FileType, INode}
+import tj.model.{GenericOpSuccess, FileType, INode}
 
 import ExecutionContext.Implicits.global
 import org.apache.cassandra.thrift.NotFoundException
@@ -20,6 +20,8 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
   private var currentDirectory: Path = null
   private var subBlockSize: Long = 0L
 
+  private val ATMOST: FiniteDuration = 10 seconds
+
   override def initialize(uri: URI, configuration: Configuration) = {
     super.initialize(uri, configuration)
     setConf(configuration)
@@ -29,7 +31,7 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
     val directory = new Path("/user", System.getProperty("user.name"))
     currentDirectory = makeQualified(directory)
 
-    //store initialize skipped
+    //store initialize skipped--passing it as an argument
 
     val defaultSubBLockSize = 256L * 1024L
     subBlockSize = configuration.getLong("fs.local.subblock.size", defaultSubBLockSize)
@@ -48,7 +50,7 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
   def getWorkingDirectory: Path = currentDirectory
 
   def open(path: Path, bufferSize: Int): FSDataInputStream = {
-    val mayBeiNode = Try(Await.result(store.retrieveINode(path), 10 seconds))
+    val mayBeiNode = Try(Await.result(store.retrieveINode(path), ATMOST))
 
     mayBeiNode match {
       case Success(inode) => {
@@ -65,7 +67,7 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
   }
 
   private def mkdir(path: Path, permission: FsPermission): Any = {
-    val mayBeiNode = Try(Await.result(store.retrieveINode(path), 10 seconds))
+    val mayBeiNode = Try(Await.result(store.retrieveINode(path), ATMOST))
 
     mayBeiNode match {
       case Success(inode) =>
@@ -77,7 +79,7 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
         val user = System.getProperty("user.name", "none")
         val timestamp = System.currentTimeMillis()
         val iNode = INode(user, user, permission, FileType.DIRECTORY, null, timestamp)
-        Await.ready(store.storeINode(path, iNode), 10 seconds)
+        Await.ready(store.storeINode(path, iNode), ATMOST)
     }
   }
 
@@ -96,7 +98,7 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
              bufferSize: Int, replication: Short, blockSize: Long,
              progress: Progressable): FSDataOutputStream = {
 
-    val mayBeiNode = Try(Await.result(store.retrieveINode(filePath), 10 seconds))
+    val mayBeiNode = Try(Await.result(store.retrieveINode(filePath), ATMOST))
     mayBeiNode match {
       case Success(p) => {
         if (p.isFile && !overwrite) {
@@ -139,7 +141,7 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
   }
 
   def getFileStatus(path: Path): FileStatus = {
-    val maybeInode = Try(Await.result(store.retrieveINode(path), 10 seconds))
+    val maybeInode = Try(Await.result(store.retrieveINode(path), ATMOST))
     maybeInode match {
       case Success(iNode: INode) => SnackFileStatus(iNode, path)
       case Failure(e) => throw new FileNotFoundException("No such file exists")
@@ -180,9 +182,29 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
     result
   }
 
-  def rename(src: Path, dst: Path): Boolean = false
+  def delete(path: Path, recursive: Boolean): Boolean = {
+    val absolutePath = makeAbsolute(path)
+    val mayBeiNode = Try(Await.result(store.retrieveINode(absolutePath), ATMOST))
+    mayBeiNode match {
+      case Success(iNode:INode) =>
+        if(iNode.isFile){
+          val iNodeDeleted = Await.result(store.deleteINode(absolutePath),ATMOST)
+          val blocksDeleted = Await.result(store.deleteBlocks(iNode),ATMOST)
+        }
+        else{
+          if(!recursive){
+            throw new IOException("Cannot delete Directory as it is not empty")
+          }
+          else {
+              //TODO
+          }
+        }
+      case Failure(e) => throw new IOException("No such file.")
+    }
+    true
+  }
 
-  def delete(path: Path, recursive: Boolean): Boolean = false
+  def rename(src: Path, dst: Path): Boolean = false
 
   def listStatus(path: Path): Array[FileStatus] = null
 }
