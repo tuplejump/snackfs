@@ -303,4 +303,18 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
     result.future
   }
 
+  def fetchSubPaths(path:Path):Future[CqlResult] = {
+    val actualPath = ByteBufferUtil.bytesToHex(getPathKey(path))
+    println("SELECT * FROM inode WHERE KEY>="+actualPath)
+    val query = ByteBufferUtil.bytes("SELECT * FROM inode WHERE KEY="+actualPath)
+    val pathFuture = AsyncUtil.executeAsync[execute_cql_query_call](client.execute_cql_query(query, Compression.NONE,_))
+    val result =promise[CqlResult]()
+    pathFuture.onSuccess{
+      case p=>result success p.getResult
+    }
+    pathFuture.onFailure{
+      case f=> result failure f
+    }
+    result.future
+  }
 }
