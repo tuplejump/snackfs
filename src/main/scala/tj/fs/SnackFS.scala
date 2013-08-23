@@ -238,7 +238,7 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
                       contents.map(path => {
                         val actualINode = Await.result(store.retrieveINode(makeQualified(path)), AT_MOST)
                         val oldPathString = path.toUri.getPath
-                        val changedPathString = oldPathString.replace(srcPathString, dstPathString)
+                        val changedPathString = oldPathString.replaceFirst(srcPathString, dstPathString)
                         val changedPath = new Path(changedPathString)
                         mkdirs(changedPath.getParent)
                         Await.ready(store.deleteINode(makeQualified(path)), AT_MOST)

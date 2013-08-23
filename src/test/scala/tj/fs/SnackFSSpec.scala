@@ -248,8 +248,6 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     fileData2.write("This is a test to check list functionality".getBytes)
     fileData2.close()
 
-    val fileStatus = fs.getFileStatus(filePath2)
-
     val baseDirPath = new Path("/abc")
     val dirStatus1 = fs.listStatus(new Path("/abc"))
     dirStatus1.filter(_.isFile).length must be(1)
