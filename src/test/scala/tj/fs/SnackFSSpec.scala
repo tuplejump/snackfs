@@ -55,7 +55,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     position must be(12)
   }
 
-  it should "throw an exception when trying to add a file as a directory" in {
+  it should "not when trying to add an existing file as a directory" in {
     val fs = SnackFS(store)
     val uri = URI.create("cfs://localhost:9000")
     fs.initialize(uri, new Configuration())
@@ -63,10 +63,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     fsData.write("SOME CONTENT".getBytes)
     fsData.close()
     val path = new Path("/home/shiti/Downloads/SOMEFILE")
-    val exception = intercept[IOException] {
-      val result = fs.mkdirs(path)
-    }
-    exception.getMessage must be("Can't make a directory for path %s since its a file".format(path))
+    fs.mkdirs(path) must be(false)
   }
 
   it should "allow to read from a file" in {
