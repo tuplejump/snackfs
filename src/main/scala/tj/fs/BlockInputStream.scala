@@ -6,10 +6,13 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 
 case class BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta) extends InputStream {
+  private val LENGTH = blockMeta.length
+  private val AT_MOST: FiniteDuration = 10 seconds
+
   private var isClosed: Boolean = false
   private var inputStream: InputStream = null
   private var currentPosition: Long = 0
-  private val length = blockMeta.length
+
   private var targetSubBlockSize = 0L
   private var targetSubBlockOffset = 0L
 
@@ -27,7 +30,8 @@ case class BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta) extend
     currentPosition = targetPosition
     targetSubBlockSize = subBlock.length
     targetSubBlockOffset = subBlock.offset
-    Await.result(store.retrieveSubBlock(blockMeta, subBlock, offset), 10 seconds)
+
+    Await.result(store.retrieveSubBlock(blockMeta.id, subBlock.id, offset), AT_MOST)
   }
 
   def read: Int = {
@@ -35,7 +39,7 @@ case class BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta) extend
       throw new IOException("Stream closed")
     }
     var result = -1
-    if (currentPosition <= length - 1) {
+    if (currentPosition <= LENGTH - 1) {
       if (currentPosition > (targetSubBlockOffset + targetSubBlockSize - 1)) {
         if (inputStream != null) {
           inputStream.close()
@@ -60,7 +64,7 @@ case class BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta) extend
     }
     var result = 0
     if (len > 0) {
-      while (result < len && currentPosition <= length - 1) {
+      while (result < len && currentPosition <= LENGTH - 1) {
         if (currentPosition > (targetSubBlockOffset + targetSubBlockSize - 1)) {
           if (inputStream != null) {
             inputStream.close()

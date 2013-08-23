@@ -7,8 +7,8 @@ import scala.concurrent.duration._
 
 case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSInputStream {
 
-  private val iNode = Await.result(store.retrieveINode(path), 10 seconds)
-  private val fileLength: Long = iNode.blocks.map(_.length).sum
+  private val INODE = Await.result(store.retrieveINode(path), 10 seconds)
+  private val FILE_LENGTH: Long = INODE.blocks.map(_.length).sum
 
   private var currentPosition: Long = 0L
 
@@ -19,7 +19,7 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
   private var isClosed: Boolean = false
 
   def seek(target: Long) = {
-    if (target > fileLength) {
+    if (target > FILE_LENGTH) {
       throw new IOException("Cannot seek after EOF")
     }
     currentPosition = target
@@ -31,11 +31,11 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
   def seekToNewSource(targetPos: Long): Boolean = false
 
   private def findBlock(targetPosition: Long): InputStream = {
-    val blockIndex = iNode.blocks.indexWhere(b => b.offset + b.length > targetPosition)
+    val blockIndex = INODE.blocks.indexWhere(b => b.offset + b.length > targetPosition)
     if (blockIndex == -1) {
       throw new IOException("Impossible situation: could not find position " + targetPosition)
     }
-    val block = iNode.blocks(blockIndex)
+    val block = INODE.blocks(blockIndex)
     currentPosition = targetPosition
     currentBlockSize = block.length
     val offset = targetPosition - block.offset
@@ -50,7 +50,7 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
     }
     var result: Int = -1
 
-    if (currentPosition < fileLength) {
+    if (currentPosition < FILE_LENGTH) {
       if (currentPosition > currentBlockSize) {
         if (blockStream != null) {
           blockStream.close()
@@ -65,7 +65,7 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
     result
   }
 
-  override def available: Int = (fileLength - currentPosition).asInstanceOf[Int]
+  override def available: Int = (FILE_LENGTH - currentPosition).asInstanceOf[Int]
 
   override def read(buf: Array[Byte], off: Int, len: Int): Int = {
     if (isClosed) {
@@ -80,7 +80,7 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
 
     var result: Int = 0
     if (len > 0) {
-      while (result < len && currentPosition <= fileLength - 1) {
+      while (result < len && currentPosition <= FILE_LENGTH - 1) {
         if (currentPosition > currentBlockSize - 1) {
           if (blockStream != null) {
             blockStream.close()
