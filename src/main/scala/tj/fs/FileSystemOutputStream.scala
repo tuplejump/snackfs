@@ -14,6 +14,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
                                   blockSize: Long, subBlockSize: Long,
                                   bufferSize: Long) extends OutputStream {
 
+  private val AT_MOST: FiniteDuration = 10 seconds
   private var isClosed: Boolean = false
 
   private var blockId: UUID = UUIDGen.getTimeUUID
@@ -57,7 +58,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
 
   private def endSubBlock() = {
     val subBlockMeta = SubBlockMeta(UUIDGen.getTimeUUID, subBlockOffset, position)
-    Await.ready(store.storeSubBlock(blockId, subBlockMeta, outBuffer), 10 seconds)
+    Await.ready(store.storeSubBlock(blockId, subBlockMeta, outBuffer), AT_MOST)
     subBlockOffset += position
     bytesWrittenToBlock += position
     subBlocksMeta = subBlocksMeta :+ subBlockMeta
@@ -72,7 +73,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
     val permissions = FsPermission.getDefault
     val timestamp = System.currentTimeMillis()
     val iNode = INode(user, user, permissions, FileType.FILE, blocksMeta, timestamp)
-    Await.ready(store.storeINode(path, iNode), 10 seconds)
+    Await.ready(store.storeINode(path, iNode), AT_MOST)
     blockOffset += subBlockLengths.asInstanceOf[Int]
     subBlocksMeta = List()
     subBlockOffset = 0

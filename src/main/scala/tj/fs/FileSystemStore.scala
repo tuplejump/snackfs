@@ -21,7 +21,7 @@ trait FileSystemStore {
 
   def storeSubBlock(blockId: UUID, subBlockMeta: SubBlockMeta, data: ByteBuffer): Future[GenericOpSuccess]
 
-  def retrieveSubBlock(blockMeta: BlockMeta, subBlockMeta: SubBlockMeta, byteRangeStart: Long): Future[InputStream]
+  def retrieveSubBlock(blockId: UUID, subBlockId: UUID, byteRangeStart: Long): Future[InputStream]
 
   def retrieveBlock(blockMeta: BlockMeta): InputStream
 
