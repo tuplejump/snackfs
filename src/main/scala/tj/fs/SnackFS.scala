@@ -212,51 +212,49 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
   }
 
   def rename(src: Path, dst: Path): Boolean = {
-    val srcPath = makeAbsolute(src)
-    val mayBeSrcINode = Try(Await.result(store.retrieveINode(srcPath), AT_MOST))
-    mayBeSrcINode match {
-      case Failure(e1) => throw new IOException("No such file or directory.%s".format(srcPath))
-      case Success(iNode: INode) =>
-        val dstPath = makeAbsolute(dst)
-        val mayBeDstINode = Try(Await.result(store.retrieveINode(dstPath), AT_MOST))
-        mayBeDstINode match {
-          case Failure(e) => {
-            val maybeDstParent = Try(Await.result(store.retrieveINode(dst.getParent), AT_MOST))
-            maybeDstParent match {
-              case Failure(e2) => throw new IOException("Destination %s directory does not exist.".format(dst.getParent))
-              case Success(dstParentINode: INode) => {
-                if (dstParentINode.isFile) {
-                  throw new IOException("A file exists with parent of destination.")
-                }
-                if (iNode.isFile) {
+    if (src != dst) {
+      val srcPath = makeAbsolute(src)
+      val mayBeSrcINode = Try(Await.result(store.retrieveINode(srcPath), AT_MOST))
+      mayBeSrcINode match {
+        case Failure(e1) => throw new IOException("No such file or directory.%s".format(srcPath))
+        case Success(iNode: INode) =>
+          val dstPath = makeAbsolute(dst)
+          val mayBeDstINode = Try(Await.result(store.retrieveINode(dstPath), AT_MOST))
+          mayBeDstINode match {
+            case Failure(e) => {
+              val maybeDstParent = Try(Await.result(store.retrieveINode(dst.getParent), AT_MOST))
+              maybeDstParent match {
+                case Failure(e2) => throw new IOException("Destination %s directory does not exist.".format(dst.getParent))
+                case Success(dstParentINode: INode) => {
+                  if (dstParentINode.isFile) {
+                    throw new IOException("A file exists with parent of destination.")
+                  }
+                  if (iNode.isDirectory) {
+                    mkdirs(dst)
+                    val contents = Await.result(store.fetchSubPaths(srcPath, true), AT_MOST)
+                    if (contents.size > 0) {
+                      val srcPathString = src.toUri.getPath
+                      val dstPathString = dst.toUri.getPath
+                      contents.map(path => {
+                        val actualINode = Await.result(store.retrieveINode(makeQualified(path)), AT_MOST)
+                        val oldPathString = path.toUri.getPath
+                        val changedPathString = oldPathString.replace(srcPathString, dstPathString)
+                        val changedPath = new Path(changedPathString)
+                        mkdirs(changedPath.getParent)
+                        Await.ready(store.deleteINode(makeQualified(path)), AT_MOST)
+                        Await.ready(store.storeINode(changedPath, actualINode), AT_MOST)
+                      })
+                    }
+                  }
                   Await.ready(store.deleteINode(srcPath), AT_MOST)
                   Await.ready(store.storeINode(dstPath, iNode), AT_MOST)
                 }
-                else {
-                  mkdirs(dst)
-                  val contents = Await.result(store.fetchSubPaths(srcPath, true), AT_MOST)
-                  if (contents.size > 0) {
-                    val srcPathString = src.toUri.getPath
-                    val dstPathString = dst.toUri.getPath
-                    val result: Boolean = contents.map(path => {
-                      val oldPathString = path.toUri.getPath
-                      val changedPathString = oldPathString.replace(srcPathString, dstPathString)
-                      val changedPath = new Path(changedPathString)
-                      mkdirs(changedPath.getParent)
-                      rename(makeQualified(path), makeQualified(changedPath))
-                    }).reduce(_ && _)
-                    if (result) {
-                      Await.ready(store.deleteINode(srcPath), AT_MOST)
-                      Await.ready(store.storeINode(dstPath, iNode), AT_MOST)
-                    }
-                  }
-                }
               }
             }
+            case Success(dstINode: INode) =>
+              throw new IOException("A file or directory exists at %s, cannot overwrite".format(dst))
           }
-          case Success(dstINode: INode) =>
-            throw new IOException("A file or directory exists at %s, cannot overwrite".format(dst))
-        }
+      }
     }
     true
   }

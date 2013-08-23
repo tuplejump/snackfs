@@ -243,14 +243,26 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     fileData1.write("This is a test to check list functionality".getBytes)
     fileData1.close()
 
+    val filePath2 = new Path("/abc/jkl/testfile")
+    val fileData2 = fs.create(filePath2)
+    fileData2.write("This is a test to check list functionality".getBytes)
+    fileData2.close()
+
+    val fileStatus = fs.getFileStatus(filePath2)
+
     val baseDirPath = new Path("/abc")
+    val dirStatus1 = fs.listStatus(new Path("/abc"))
+    dirStatus1.filter(_.isFile).length must be(1)
 
     fs.mkdirs(new Path("/pqr"))
     fs.rename(baseDirPath, new Path("/pqr/lmn"))
 
     val dirStatus = fs.listStatus(new Path("/pqr/lmn"))
     dirStatus.filter(_.isFile).length must be(1)
-    dirStatus.filter(_.isDirectory).length must be(2)
+    dirStatus.filter(_.isDirectory).length must be(3)
+
+    val fileStatus2 = fs.getFileStatus(new Path("/pqr/lmn/jkl/testfile"))
+    fileStatus2.isFile must be(true)
   }
 
   override def afterAll() = {
