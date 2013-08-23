@@ -13,7 +13,7 @@ import org.apache.cassandra.thrift.Cassandra.AsyncClient.{set_keyspace_call, sys
 import java.net.URI
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
-import java.io.IOException
+import java.io.{FileNotFoundException, IOException}
 
 class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
@@ -138,6 +138,119 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     val status = fs.getFileStatus(path)
     val locations = fs.getFileBlockLocations(status, 0, 10)
     assert(locations(0).getLength === 250)
+  }
+
+  it should "list all files/directories within the given directory" in {
+    val fs = SnackFS(store)
+    val uri = URI.create("cfs://localhost:9000")
+    fs.initialize(uri, new Configuration())
+    val dirPath1 = new Path("/tmp/user")
+    fs.mkdirs(dirPath1)
+    val dirPath2 = new Path("/tmp/local")
+    fs.mkdirs(dirPath2)
+
+    val filePath1 = new Path("/tmp/testfile")
+    val fileData1 = fs.create(filePath1)
+    fileData1.write("This is a test to check list functionality".getBytes)
+    fileData1.close()
+
+    val filePath2 = new Path("/tmp/user/file")
+    val fileData2 = fs.create(filePath2)
+    fileData2.write("This is a test to check list functionality".getBytes)
+    fileData2.close()
+
+    val baseDirPath = new Path("/tmp")
+    val result = fs.listStatus(baseDirPath)
+    result.length must be(3)
+    result.filter(_.isFile).length must be(1)
+    result.filter(_.isDirectory).length must be(2)
+  }
+
+  it should "delete all files/directories within the given directory" in {
+    val fs = SnackFS(store)
+    val uri = URI.create("cfs://localhost:9000")
+    fs.initialize(uri, new Configuration())
+    val dirPath1 = new Path("/tmp/user")
+    fs.mkdirs(dirPath1)
+    val dirPath2 = new Path("/tmp/local")
+    fs.mkdirs(dirPath2)
+
+    val filePath1 = new Path("/tmp/testfile")
+    val fileData1 = fs.create(filePath1)
+    fileData1.write("This is a test to check list functionality".getBytes)
+    fileData1.close()
+
+    val filePath2 = new Path("/tmp/user/file")
+    val fileData2 = fs.create(filePath2)
+    fileData2.write("This is a test to check list functionality".getBytes)
+    fileData2.close()
+
+    val dirStatus = fs.getFileStatus(dirPath2)
+    dirStatus.isDirectory must be(true)
+
+    val baseDirPath = new Path("/tmp")
+    val result = fs.delete(baseDirPath, true)
+    result must be(true)
+
+    val exception1 = intercept[FileNotFoundException] {
+      val dir = fs.getFileStatus(dirPath2)
+    }
+    exception1.getMessage must be("No such file exists")
+
+    val exception2 = intercept[FileNotFoundException] {
+      val dir = fs.getFileStatus(filePath2)
+    }
+    exception2.getMessage must be("No such file exists")
+  }
+
+  it should "rename a file" in {
+    val fs = SnackFS(store)
+    val uri = URI.create("cfs://localhost:9000")
+    fs.initialize(uri, new Configuration())
+
+    val filePath1 = new Path("/tmp/testfile")
+    val fileData1 = fs.create(filePath1)
+    fileData1.write("This is a test to check rename functionality".getBytes)
+    fileData1.close()
+
+    val filePath2 = new Path("/tmp/file")
+
+    val result = fs.rename(filePath1, filePath2)
+
+    result must be(true)
+
+    val exception2 = intercept[FileNotFoundException] {
+      val dir = fs.getFileStatus(filePath1)
+    }
+    exception2.getMessage must be("No such file exists")
+
+    val fileStatus = fs.getFileStatus(filePath2)
+    fileStatus.isFile must be(true)
+  }
+
+  it should "rename a directory" in {
+    val fs = SnackFS(store)
+    val uri = URI.create("cfs://localhost:9000")
+    fs.initialize(uri, new Configuration())
+
+    val dirPath1 = new Path("/abc/user")
+    fs.mkdirs(dirPath1)
+    val dirPath2 = new Path("/abc/local")
+    fs.mkdirs(dirPath2)
+
+    val filePath1 = new Path("/abc/testfile")
+    val fileData1 = fs.create(filePath1)
+    fileData1.write("This is a test to check list functionality".getBytes)
+    fileData1.close()
+
+    val baseDirPath = new Path("/abc")
+
+    fs.mkdirs(new Path("/pqr"))
+    fs.rename(baseDirPath, new Path("/pqr/lmn"))
+
+    val dirStatus = fs.listStatus(new Path("/pqr/lmn"))
+    dirStatus.filter(_.isFile).length must be(1)
+    dirStatus.filter(_.isDirectory).length must be(2)
   }
 
   override def afterAll() = {

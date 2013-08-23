@@ -8,10 +8,9 @@ import org.apache.hadoop.conf.Configuration
 import java.io.{FileNotFoundException, IOException}
 import scala.concurrent.{ExecutionContext, Await}
 import scala.concurrent.duration._
-import tj.model.{GenericOpSuccess, FileType, INode}
+import tj.model.{FileType, INode}
 
 import ExecutionContext.Implicits.global
-import org.apache.cassandra.thrift.NotFoundException
 import scala.util.{Failure, Success, Try}
 
 case class SnackFS(store: FileSystemStore) extends FileSystem {
@@ -202,7 +201,10 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
           Await.ready(store.deleteBlocks(iNode), AT_MOST)
         }
         else {
-          // TODO check if dir is empty and/or recursive is true
+          val contents = listStatus(path)
+          if (contents.length == 0) Await.ready(store.deleteINode(absolutePath), AT_MOST)
+          else if (!recursive) throw new IOException("Directory is not empty")
+          else result = contents.map(p => delete(p.getPath, recursive)).reduce(_ && _)
         }
       case Failure(e) => result = false //No such file
     }
@@ -213,7 +215,7 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
     val srcPath = makeAbsolute(src)
     val mayBeSrcINode = Try(Await.result(store.retrieveINode(srcPath), AT_MOST))
     mayBeSrcINode match {
-      case Failure(e1) => throw new IOException("No such file or directory.")
+      case Failure(e1) => throw new IOException("No such file or directory.%s".format(srcPath))
       case Success(iNode: INode) =>
         val dstPath = makeAbsolute(dst)
         val mayBeDstINode = Try(Await.result(store.retrieveINode(dstPath), AT_MOST))
@@ -221,7 +223,7 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
           case Failure(e) => {
             val maybeDstParent = Try(Await.result(store.retrieveINode(dst.getParent), AT_MOST))
             maybeDstParent match {
-              case Failure(e2) => throw new IOException("Destination directory does not exist.")
+              case Failure(e2) => throw new IOException("Destination %s directory does not exist.".format(dst.getParent))
               case Success(dstParentINode: INode) => {
                 if (dstParentINode.isFile) {
                   throw new IOException("A file exists with parent of destination.")
@@ -231,7 +233,23 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
                   Await.ready(store.storeINode(dstPath, iNode), AT_MOST)
                 }
                 else {
-                  //TODO rename directory
+                  mkdirs(dst)
+                  val contents = Await.result(store.fetchSubPaths(srcPath, true), AT_MOST)
+                  if (contents.size > 0) {
+                    val srcPathString = src.toUri.getPath
+                    val dstPathString = dst.toUri.getPath
+                    val result: Boolean = contents.map(path => {
+                      val oldPathString = path.toUri.getPath
+                      val changedPathString = oldPathString.replace(srcPathString, dstPathString)
+                      val changedPath = new Path(changedPathString)
+                      mkdirs(changedPath.getParent)
+                      rename(makeQualified(path), makeQualified(changedPath))
+                    }).reduce(_ && _)
+                    if (result) {
+                      Await.ready(store.deleteINode(srcPath), AT_MOST)
+                      Await.ready(store.storeINode(dstPath, iNode), AT_MOST)
+                    }
+                  }
                 }
               }
             }
@@ -243,5 +261,21 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
     true
   }
 
-  def listStatus(path: Path): Array[FileStatus] = null
+  def listStatus(path: Path): Array[FileStatus] = {
+    var result: Array[FileStatus] = Array()
+    val absolutePath = makeAbsolute(path)
+    val mayBeiNode = Try(Await.result(store.retrieveINode(absolutePath), AT_MOST))
+    mayBeiNode match {
+      case Success(iNode: INode) =>
+        if (iNode.isFile) {
+          val fileStatus = SnackFileStatus(iNode, absolutePath)
+          result = Array(fileStatus)
+        } else {
+          val subPaths = Await.result(store.fetchSubPaths(absolutePath, false), AT_MOST)
+          result = subPaths.map(p => getFileStatus(makeQualified(p))).toArray
+        }
+      case Failure(e) => throw new FileNotFoundException("No such file exists")
+    }
+    result
+  }
 }
