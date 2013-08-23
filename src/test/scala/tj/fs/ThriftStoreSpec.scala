@@ -21,7 +21,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import org.apache.cassandra.utils.ByteBufferUtil
 import org.apache.commons.io.IOUtils
 import org.scalatest.matchers.MustMatchers
-import org.apache.cassandra.thrift.NotFoundException
+import org.apache.cassandra.thrift.{CqlRow, NotFoundException}
 
 class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
@@ -80,7 +80,7 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
 
   it should "fetch created subBlock" in {
     Await.ready(store.storeSubBlock(block1.id, subBlockMeta1, data), 10 seconds)
-    val storeResponse = store.retrieveSubBlock(block1, subBlockMeta1, 0)
+    val storeResponse = store.retrieveSubBlock(block1.id, subBlockMeta1.id, 0)
     val response = Await.result(storeResponse, 10 seconds)
     val responseString = new String(IOUtils.toByteArray(response))
     responseString must be(new String(data.array()))
@@ -99,7 +99,7 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
     val blockMeta = BlockMeta(blockId, 0, 0, List(subBlock))
     val blockMetaSecond = BlockMeta(blockId, 0, 0, List(subBlock))
 
-    val subBlockData = Await.result(store.retrieveSubBlock(blockMeta, subBlock, 0), 10 seconds)
+    val subBlockData = Await.result(store.retrieveSubBlock(blockMeta.id, subBlock.id, 0), 10 seconds)
     val dataString = new String(IOUtils.toByteArray(subBlockData))
     dataString must be("Random test data")
 
@@ -108,9 +108,26 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
     Await.ready(store.deleteBlocks(iNode), 10 seconds)
 
     val exception = intercept[NotFoundException] {
-      val subBlockData = Await.result(store.retrieveSubBlock(blockMeta, subBlock, 0), 10 seconds)
+      val subBlockData = Await.result(store.retrieveSubBlock(blockMeta.id, subBlock.id, 0), 10 seconds)
     }
     assert(exception.getMessage === null)
+  }
+
+  it should "fetch a row of inode" in {
+    val path1 = new Path("/tmp")
+    val iNode1 = INode("user", "group", FsPermission.getDefault, FileType.DIRECTORY,null, timestamp)
+    Await.ready(store.storeINode(path1, iNode1), 10 seconds)
+
+    val path2 = new Path("/tmp/user")
+    Await.ready(store.storeINode(path2, iNode1), 10 seconds)
+
+    val path3 = new Path("/tmp/user/file")
+    Await.ready(store.storeINode(path3, iNode), 10 seconds)
+
+    val result = Await.result(store.fetchSubPaths(path1), 10 seconds)
+    println(result.toString())
+
+    result.size must be(2)
   }
 
   override def afterAll() = {
