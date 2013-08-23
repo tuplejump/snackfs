@@ -28,4 +28,6 @@ trait FileSystemStore {
   def deleteINode(path: Path): Future[GenericOpSuccess]
 
   def deleteBlocks(iNode: INode): Future[GenericOpSuccess]
+
+  def fetchSubPaths(path: Path, isDeepFetch: Boolean): Future[Set[Path]]
 }
