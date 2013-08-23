@@ -292,7 +292,8 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
 
     val result = promise[GenericOpSuccess]()
 
-    val deleteFuture = AsyncUtil.executeAsync[batch_mutate_call](client.batch_mutate(mutationMap, CONSISTENCY_LEVEL_WRITE, _))
+    val deleteFuture = AsyncUtil.executeAsync[batch_mutate_call](
+      client.batch_mutate(mutationMap, CONSISTENCY_LEVEL_WRITE, _))
     deleteFuture.onSuccess {
       case p => {
         result success GenericOpSuccess()
@@ -306,22 +307,28 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
     result.future
   }
 
-  def fetchSubPaths(path: Path): Future[Set[Path]] = {
+  def fetchSubPaths(path: Path, isDeepFetch: Boolean): Future[Set[Path]] = {
     val startPath = path.toUri.getPath
     val startPathBuffer = ByteBufferUtil.bytes(startPath)
 
     val sentinelIndexExpr = new IndexExpression(SENTINEL_COLUMN, IndexOperator.EQ, SENTINEL_VALUE)
-    val startPathIndexExpr = new IndexExpression(PATH_COLUMN, IndexOperator.GT, startPathBuffer)
+    var startPathIndexExpr = new IndexExpression()
+    var indexExpr = List[IndexExpression]()
 
-    var indexExpr = List(sentinelIndexExpr, startPathIndexExpr)
-
-    if (startPath.length > 1) {
-      val lastChar = (startPath(startPath.length - 1) + 1).asInstanceOf[Char]
-      val endPath = startPath.substring(0, startPath.length - 1) + lastChar
-      val endPathBuffer = ByteBufferUtil.bytes(endPath)
-      val endPathIndexExpr = new IndexExpression(PATH_COLUMN, IndexOperator.LT, endPathBuffer)
-      indexExpr = indexExpr :+ endPathIndexExpr
+    if (isDeepFetch) {
+      startPathIndexExpr = new IndexExpression(PATH_COLUMN, IndexOperator.GT, startPathBuffer)
+      if (startPath.length > 1) {
+        val lastChar = (startPath(startPath.length - 1) + 1).asInstanceOf[Char]
+        val endPath = startPath.substring(0, startPath.length - 1) + lastChar
+        val endPathBuffer = ByteBufferUtil.bytes(endPath)
+        val endPathIndexExpr = new IndexExpression(PATH_COLUMN, IndexOperator.LT, endPathBuffer)
+        indexExpr = List(endPathIndexExpr)
+      }
+    } else {
+      startPathIndexExpr = new IndexExpression(PARENT_PATH_COLUMN, IndexOperator.EQ, startPathBuffer)
     }
+
+    indexExpr = indexExpr ++ List(sentinelIndexExpr, startPathIndexExpr)
 
     val pathPredicate = new SlicePredicate().setColumn_names(List(PATH_COLUMN))
     val iNodeParent = new ColumnParent(INODE_COLUMN_FAMILY_NAME)

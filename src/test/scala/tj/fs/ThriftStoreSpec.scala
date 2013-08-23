@@ -113,9 +113,9 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
     assert(exception.getMessage === null)
   }
 
-  it should "fetch a row of inode" in {
+  it should "fetch all sub-paths" in {
     val path1 = new Path("/tmp")
-    val iNode1 = INode("user", "group", FsPermission.getDefault, FileType.DIRECTORY,null, timestamp)
+    val iNode1 = INode("user", "group", FsPermission.getDefault, FileType.DIRECTORY, null, timestamp)
     Await.ready(store.storeINode(path1, iNode1), 10 seconds)
 
     val path2 = new Path("/tmp/user")
@@ -124,10 +124,27 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
     val path3 = new Path("/tmp/user/file")
     Await.ready(store.storeINode(path3, iNode), 10 seconds)
 
-    val result = Await.result(store.fetchSubPaths(path1), 10 seconds)
+    val result = Await.result(store.fetchSubPaths(path1,true), 10 seconds)
     println(result.toString())
 
     result.size must be(2)
+  }
+
+  it should "fetch sub-paths" in {
+    val path1 = new Path("/tmp")
+    val iNode1 = INode("user", "group", FsPermission.getDefault, FileType.DIRECTORY, null, timestamp)
+    Await.ready(store.storeINode(path1, iNode1), 10 seconds)
+
+    val path2 = new Path("/tmp/user")
+    Await.ready(store.storeINode(path2, iNode1), 10 seconds)
+
+    val path3 = new Path("/tmp/user/file")
+    Await.ready(store.storeINode(path3, iNode), 10 seconds)
+
+    val result = Await.result(store.fetchSubPaths(path1,false), 10 seconds)
+    println(result.toString())
+
+    result.size must be(1)
   }
 
   override def afterAll() = {
