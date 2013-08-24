@@ -1,6 +1,7 @@
 /*
 Test for FileSystem from Hadoop codebase
-package tj.fs;
+*/
+package org.apache.hadoop.fs;
 
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -25,7 +26,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
-import org.apache.hadoop.fs.shell.CommandFormat;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.hadoop.io.Text;
@@ -33,6 +33,7 @@ import org.apache.hadoop.io.SequenceFile.CompressionType;
 import org.apache.hadoop.mapred.*;
 import org.apache.hadoop.mapred.lib.LongSumReducer;
 import org.apache.hadoop.security.UserGroupInformation;
+import org.apache.hadoop.fs.SnackFS;
 
 public class TestFileSystem extends TestCase {
     private static final Log LOG = FileSystem.LOG;
@@ -43,7 +44,7 @@ public class TestFileSystem extends TestCase {
     private static final long MEGA = 1024 * 1024;
     private static final int SEEKS_PER_FILE = 4;
 
-    private static String ROOT = System.getProperty("test.build.data","fs_test");
+    private static String ROOT = System.getProperty("test.build.data", "fs_test");
     private static Path CONTROL_DIR = new Path(ROOT, "fs_control");
     private static Path WRITE_DIR = new Path(ROOT, "fs_write");
     private static Path READ_DIR = new Path(ROOT, "fs_read");
@@ -56,12 +57,12 @@ public class TestFileSystem extends TestCase {
     public static void testFs(long megaBytes, int numFiles, long seed)
             throws Exception {
 
-        FileSystem fs = FileSystem.get(conf);
+        FileSystem fs = SnackFS.get(conf);
 
         if (seed == 0)
             seed = new Random().nextLong();
 
-        LOG.info("seed = "+seed);
+        LOG.info("seed = " + seed);
 
         createControlFile(fs, megaBytes, numFiles, seed);
         writeTest(fs, false);
@@ -73,32 +74,31 @@ public class TestFileSystem extends TestCase {
         fs.delete(READ_DIR, true);
     }
 
-    public static void testCommandFormat() throws Exception {
+    /*public static void testCommandFormat() throws Exception {
         // This should go to TestFsShell.java when it is added.
         CommandFormat cf;
-        cf= new CommandFormat("copyToLocal", 2,2,"crc","ignoreCrc");
-        assertEquals(cf.parse(new String[] {"-get","file", "-"}, 1).get(1), "-");
+        cf = new CommandFormat("copyToLocal", 2, 2, "crc", "ignoreCrc");
+        assertEquals(cf.parse(new String[]{"-get", "file", "-"}, 1).get(1), "-");
         try {
-            cf.parse(new String[] {"-get","file","-ignoreCrc","/foo"}, 1);
+            cf.parse(new String[]{"-get", "file", "-ignoreCrc", "/foo"}, 1);
             fail("Expected parsing to fail as it should stop at first non-option");
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             // Expected
         }
         cf = new CommandFormat("tail", 1, 1, "f");
-        assertEquals(cf.parse(new String[] {"-tail","fileName"}, 1).get(0),"fileName");
-        assertEquals(cf.parse(new String[] {"-tail","-f","fileName"}, 1).get(0),"fileName");
+        assertEquals(cf.parse(new String[]{"-tail", "fileName"}, 1).get(0), "fileName");
+        assertEquals(cf.parse(new String[]{"-tail", "-f", "fileName"}, 1).get(0), "fileName");
         cf = new CommandFormat("setrep", 2, 2, "R", "w");
-        assertEquals(cf.parse(new String[] {"-setrep","-R","2","/foo/bar"}, 1).get(1), "/foo/bar");
+        assertEquals(cf.parse(new String[]{"-setrep", "-R", "2", "/foo/bar"}, 1).get(1), "/foo/bar");
         cf = new CommandFormat("put", 2, 10000);
-        assertEquals(cf.parse(new String[] {"-put", "-", "dest"}, 1).get(1), "dest");
-    }
+        assertEquals(cf.parse(new String[]{"-put", "-", "dest"}, 1).get(1), "dest");
+    }*/
 
     public static void createControlFile(FileSystem fs,
                                          long megaBytes, int numFiles,
                                          long seed) throws Exception {
 
-        LOG.info("creating control file: "+megaBytes+" bytes, "+numFiles+" files");
+        LOG.info("creating control file: " + megaBytes + " bytes, " + numFiles + " files");
 
         Path controlFile = new Path(CONTROL_DIR, "files");
         fs.delete(controlFile, true);
@@ -128,7 +128,7 @@ public class TestFileSystem extends TestCase {
         } finally {
             writer.close();
         }
-        LOG.info("created control file for: "+totalSize+" bytes");
+        LOG.info("created control file for: " + totalSize + " bytes");
     }
 
     public static class WriteMapper extends Configured
@@ -140,19 +140,23 @@ public class TestFileSystem extends TestCase {
         private boolean fastCheck;
 
         // a random suffix per task
-        private String suffix = "-"+random.nextLong();
+        private String suffix = "-" + random.nextLong();
 
         {
             try {
-                fs = FileSystem.get(conf);
+                fs = SnackFS.get(conf);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         }
 
-        public WriteMapper() { super(null); }
+        public WriteMapper() {
+            super(null);
+        }
 
-        public WriteMapper(Configuration conf) { super(conf); }
+        public WriteMapper(Configuration conf) {
+            super(conf);
+        }
 
         public void configure(JobConf job) {
             setConf(job);
@@ -172,22 +176,22 @@ public class TestFileSystem extends TestCase {
             reporter.setStatus("creating " + name);
 
             // write to temp file initially to permit parallel execution
-            Path tempFile = new Path(DATA_DIR, name+suffix);
+            Path tempFile = new Path(DATA_DIR, name + suffix);
             OutputStream out = fs.create(tempFile);
 
             long written = 0;
             try {
                 while (written < size) {
                     if (fastCheck) {
-                        Arrays.fill(buffer, (byte)random.nextInt(Byte.MAX_VALUE));
+                        Arrays.fill(buffer, (byte) random.nextInt(Byte.MAX_VALUE));
                     } else {
                         random.nextBytes(buffer);
                     }
                     long remains = size - written;
-                    int length = (remains<=buffer.length) ? (int)remains : buffer.length;
+                    int length = (remains <= buffer.length) ? (int) remains : buffer.length;
                     out.write(buffer, 0, length);
                     written += length;
-                    reporter.setStatus("writing "+name+"@"+written+"/"+size);
+                    reporter.setStatus("writing " + name + "@" + written + "/" + size);
                 }
             } finally {
                 out.close();
@@ -232,21 +236,25 @@ public class TestFileSystem extends TestCase {
 
         private Random random = new Random();
         private byte[] buffer = new byte[BUFFER_SIZE];
-        private byte[] check  = new byte[BUFFER_SIZE];
+        private byte[] check = new byte[BUFFER_SIZE];
         private FileSystem fs;
         private boolean fastCheck;
 
         {
             try {
-                fs = FileSystem.get(conf);
+                fs = SnackFS.get(conf);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         }
 
-        public ReadMapper() { super(null); }
+        public ReadMapper() {
+            super(null);
+        }
 
-        public ReadMapper(Configuration conf) { super(conf); }
+        public ReadMapper(Configuration conf) {
+            super(conf);
+        }
 
         public void configure(JobConf job) {
             setConf(job);
@@ -272,21 +280,21 @@ public class TestFileSystem extends TestCase {
             try {
                 while (read < size) {
                     long remains = size - read;
-                    int n = (remains<=buffer.length) ? (int)remains : buffer.length;
+                    int n = (remains <= buffer.length) ? (int) remains : buffer.length;
                     in.readFully(buffer, 0, n);
                     read += n;
                     if (fastCheck) {
-                        Arrays.fill(check, (byte)random.nextInt(Byte.MAX_VALUE));
+                        Arrays.fill(check, (byte) random.nextInt(Byte.MAX_VALUE));
                     } else {
                         random.nextBytes(check);
                     }
                     if (n != buffer.length) {
-                        Arrays.fill(buffer, n, buffer.length, (byte)0);
-                        Arrays.fill(check, n, check.length, (byte)0);
+                        Arrays.fill(buffer, n, buffer.length, (byte) 0);
+                        Arrays.fill(check, n, check.length, (byte) 0);
                     }
                     assertTrue(Arrays.equals(buffer, check));
 
-                    reporter.setStatus("reading "+name+"@"+read+"/"+size);
+                    reporter.setStatus("reading " + name + "@" + read + "/" + size);
 
                 }
             } finally {
@@ -330,21 +338,25 @@ public class TestFileSystem extends TestCase {
             implements Mapper<Text, LongWritable, K, LongWritable> {
 
         private Random random = new Random();
-        private byte[] check  = new byte[BUFFER_SIZE];
+        private byte[] check = new byte[BUFFER_SIZE];
         private FileSystem fs;
         private boolean fastCheck;
 
         {
             try {
-                fs = FileSystem.get(conf);
+                fs = SnackFS.get(conf);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
         }
 
-        public SeekMapper() { super(null); }
+        public SeekMapper() {
+            super(null);
+        }
 
-        public SeekMapper(Configuration conf) { super(conf); }
+        public SeekMapper(Configuration conf) {
+            super(conf);
+        }
 
         public void configure(JobConf job) {
             setConf(job);
@@ -379,13 +391,13 @@ public class TestFileSystem extends TestCase {
                     byte checkByte = 0;
                     // advance random state to that position
                     random.setSeed(seed);
-                    for (int p = 0; p <= position; p+= check.length) {
+                    for (int p = 0; p <= position; p += check.length) {
                         reporter.setStatus("generating data for " + name);
                         if (fastCheck) {
-                            checkByte = (byte)random.nextInt(Byte.MAX_VALUE);
+                            checkByte = (byte) random.nextInt(Byte.MAX_VALUE);
                         } else {
                             random.nextBytes(check);
-                            checkByte = check[(int)(position % check.length)];
+                            checkByte = check[(int) (position % check.length)];
                         }
                     }
                     assertEquals(b, checkByte);
@@ -408,7 +420,7 @@ public class TestFileSystem extends TestCase {
         JobConf job = new JobConf(conf, TestFileSystem.class);
         job.setBoolean("fs.test.fastCheck", fastCheck);
 
-        FileInputFormat.setInputPaths(job,CONTROL_DIR);
+        FileInputFormat.setInputPaths(job, CONTROL_DIR);
         job.setInputFormat(SequenceFileInputFormat.class);
 
         job.setMapperClass(SeekMapper.class);
@@ -453,14 +465,14 @@ public class TestFileSystem extends TestCase {
             }
         }
 
-        LOG.info("seed = "+seed);
+        LOG.info("seed = " + seed);
         LOG.info("files = " + files);
         LOG.info("megaBytes = " + megaBytes);
 
-        FileSystem fs = FileSystem.get(conf);
+        FileSystem fs = SnackFS.get(conf);
 
         if (!noWrite) {
-            createControlFile(fs, megaBytes*MEGA, files, seed);
+            createControlFile(fs, megaBytes * MEGA, files, seed);
             writeTest(fs, fastCheck);
         }
         if (!noRead) {
@@ -474,17 +486,18 @@ public class TestFileSystem extends TestCase {
     public void testFsCache() throws Exception {
         {
             long now = System.currentTimeMillis();
-            String[] users = new String[]{"foo","bar"};
+            String[] users = new String[]{"foo", "bar"};
             final Configuration conf = new Configuration();
             FileSystem[] fs = new FileSystem[users.length];
 
-            for(int i = 0; i < users.length; i++) {
+            for (int i = 0; i < users.length; i++) {
                 UserGroupInformation ugi = UserGroupInformation.createRemoteUser(users[i]);
                 fs[i] = ugi.doAs(new PrivilegedExceptionAction<FileSystem>() {
                     public FileSystem run() throws IOException {
-                        return FileSystem.get(conf);
-                    }});
-                for(int j = 0; j < i; j++) {
+                        return SnackFS.get(conf);
+                    }
+                });
+                for (int j = 0; j < i; j++) {
                     assertFalse(fs[j] == fs[i]);
                 }
             }
@@ -494,7 +507,7 @@ public class TestFileSystem extends TestCase {
         {
             try {
                 runTestCache(NameNode.DEFAULT_PORT);
-            } catch(java.net.BindException be) {
+            } catch (java.net.BindException be) {
                 LOG.warn("Cannot test NameNode.DEFAULT_PORT (="
                         + NameNode.DEFAULT_PORT + ")", be);
             }
@@ -512,10 +525,10 @@ public class TestFileSystem extends TestCase {
             LOG.info("uri=" + uri);
 
             {
-                FileSystem fs = FileSystem.get(uri, new Configuration());
+                FileSystem fs = SnackFS.get(uri, new Configuration());
                 checkPath(cluster, fs);
-                for(int i = 0; i < 100; i++) {
-                    assertTrue(fs == FileSystem.get(uri, new Configuration()));
+                for (int i = 0; i < 100; i++) {
+                    assertTrue(fs == SnackFS.get(uri, new Configuration()));
                 }
             }
 
@@ -525,10 +538,10 @@ public class TestFileSystem extends TestCase {
                         uri.getHost(), NameNode.DEFAULT_PORT, uri.getPath(),
                         uri.getQuery(), uri.getFragment());
                 LOG.info("uri2=" + uri2);
-                FileSystem fs = FileSystem.get(uri2, conf);
+                FileSystem fs = SnackFS.get(uri2, conf);
                 checkPath(cluster, fs);
-                for(int i = 0; i < 100; i++) {
-                    assertTrue(fs == FileSystem.get(uri2, new Configuration()));
+                for (int i = 0; i < 100; i++) {
+                    assertTrue(fs == SnackFS.get(uri2, new Configuration()));
                 }
             }
         } finally {
@@ -572,9 +585,9 @@ public class TestFileSystem extends TestCase {
         confNoAuto.setBoolean("fs.automatic.close", false);
 
         TestShutdownFileSystem fsWithAuto =
-                (TestShutdownFileSystem)(new Path("test://a/").getFileSystem(conf));
+                (TestShutdownFileSystem) (new Path("test://a/").getFileSystem(conf));
         TestShutdownFileSystem fsWithoutAuto =
-                (TestShutdownFileSystem)(new Path("test://b/").getFileSystem(confNoAuto));
+                (TestShutdownFileSystem) (new Path("test://b/").getFileSystem(confNoAuto));
 
         fsWithAuto.setClosedSet(closed);
         fsWithoutAuto.setClosedSet(closed);
@@ -595,18 +608,17 @@ public class TestFileSystem extends TestCase {
 
 
     public void testCacheKeysAreCaseInsensitive()
-            throws Exception
-    {
+            throws Exception {
         Configuration conf = new Configuration();
 
         // check basic equality
-        FileSystem.Cache.Key lowercaseCachekey1 = new FileSystem.Cache.Key(new URI("hftp://localhost:12345/"), conf);
-        FileSystem.Cache.Key lowercaseCachekey2 = new FileSystem.Cache.Key(new URI("hftp://localhost:12345/"), conf);
-        assertEquals( lowercaseCachekey1, lowercaseCachekey2 );
+        FileSystem.Cache.Key lowercaseCachekey1 = new SnackFS.Cache.Key(new URI("hftp://localhost:12345/"), conf);
+        FileSystem.Cache.Key lowercaseCachekey2 = new SnackFS.Cache.Key(new URI("hftp://localhost:12345/"), conf);
+        assertEquals(lowercaseCachekey1, lowercaseCachekey2);
 
         // check insensitive equality
-        FileSystem.Cache.Key uppercaseCachekey = new FileSystem.Cache.Key(new URI("HFTP://Localhost:12345/"), conf);
-        assertEquals( lowercaseCachekey2, uppercaseCachekey );
+        FileSystem.Cache.Key uppercaseCachekey = new SnackFS.Cache.Key(new URI("HFTP://Localhost:12345/"), conf);
+        assertEquals(lowercaseCachekey2, uppercaseCachekey);
 
         // check behaviour with collections
         List<FileSystem.Cache.Key> list = new ArrayList<FileSystem.Cache.Key>();
@@ -630,13 +642,13 @@ public class TestFileSystem extends TestCase {
             throws Exception {
 
         // multiple invocations of FileSystem.get return the same object.
-        FileSystem fs1 = FileSystem.get(conf);
-        FileSystem fs2 = FileSystem.get(conf);
+        FileSystem fs1 = SnackFS.get(conf);
+        FileSystem fs2 = SnackFS.get(conf);
         assertTrue(fs1 == fs2);
 
         // multiple invocations of FileSystem.newInstance return different objects
-        fs1 = FileSystem.newInstance(conf);
-        fs2 = FileSystem.newInstance(conf);
+        fs1 = SnackFS.newInstance(conf);
+        fs2 = SnackFS.newInstance(conf);
         assertTrue(fs1 != fs2 && !fs1.equals(fs2));
         fs1.close();
         fs2.close();
@@ -648,6 +660,7 @@ public class TestFileSystem extends TestCase {
         public void setClosedSet(Set<FileSystem> closedSet) {
             this.closedSet = closedSet;
         }
+
         public void close() throws IOException {
             if (closedSet != null) {
                 closedSet.add(this);
@@ -656,4 +669,3 @@ public class TestFileSystem extends TestCase {
         }
     }
 }
-*/

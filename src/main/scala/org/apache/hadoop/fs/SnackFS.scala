@@ -1,4 +1,4 @@
-package tj.fs
+package org.apache.hadoop.fs
 
 import org.apache.hadoop.fs._
 import java.net.URI
@@ -10,16 +10,23 @@ import scala.concurrent.{ExecutionContext, Await}
 import scala.concurrent.duration._
 import tj.model.{FileType, INode}
 
-import ExecutionContext.Implicits.global
 import scala.util.{Failure, Success, Try}
+import org.apache.thrift.async.TAsyncClientManager
+import org.apache.thrift.protocol.TBinaryProtocol
+import org.apache.thrift.transport.TNonblockingSocket
+import org.apache.cassandra.thrift.Cassandra.AsyncClient
+import tj.util.AsyncUtil
+import org.apache.cassandra.thrift.Cassandra.AsyncClient.set_keyspace_call
+import tj.fs.{FileSystemOutputStream, FileSystemInputStream, ThriftStore, FileSystemStore}
 
-case class SnackFS(store: FileSystemStore) extends FileSystem {
+case class SnackFS() extends FileSystem {
 
   private var systemURI: URI = null
   private var currentDirectory: Path = null
   private var subBlockSize: Long = 0L
 
   private val AT_MOST: FiniteDuration = 10 seconds
+  private var store: FileSystemStore = null
 
   override def initialize(uri: URI, configuration: Configuration) = {
     super.initialize(uri, configuration)
@@ -30,7 +37,16 @@ case class SnackFS(store: FileSystemStore) extends FileSystem {
     val directory = new Path("/user", System.getProperty("user.name"))
     currentDirectory = makeQualified(directory)
 
-    //store initialize skipped--passing it as an argument
+    //store initialize hard-coding temporarily
+    val clientManager = new TAsyncClientManager()
+    val protocolFactory = new TBinaryProtocol.Factory()
+    val transport = new TNonblockingSocket("127.0.0.1", 9160)
+
+    def client = new AsyncClient(protocolFactory, clientManager, transport)
+
+    store = new ThriftStore(client)
+    Await.ready(store.createKeyspace(store.buildSchema("FS", 1)), AT_MOST)
+    Await.ready(AsyncUtil.executeAsync[set_keyspace_call](client.set_keyspace("FS", _)), AT_MOST)
 
     val defaultSubBLockSize = 256L * 1024L
     subBlockSize = configuration.getLong("fs.local.subblock.size", defaultSubBLockSize)
