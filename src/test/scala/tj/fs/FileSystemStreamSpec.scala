@@ -31,7 +31,8 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
   it should "fetch data which is equal to actual data" in {
     val pathURI = URI.create("outputStream.txt")
     val path = new Path(pathURI)
-    val data = ByteBufferUtil.bytes("Test Subblock insertion")
+    val dataString: String = "Test Subblock insertion"
+    val data = ByteBufferUtil.bytes(dataString)
 
     val outputStream = FileSystemOutputStream(store, path, 30, 10, 10)
 
@@ -45,7 +46,7 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
     var outBuf: Array[Byte] = new Array[Byte](23)
     blockData.read(outBuf, 0, 23)
     assert(outBuf != null)
-    assert(outBuf === data.array())
+    new String(outBuf) must be(dataString)
   }
 
   it should "fetch data loaded from smaller(<2KB) file" in {
@@ -76,7 +77,8 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
       offset += block.length.asInstanceOf[Int]
     })
     println("completed copy")
-    assert(fetchedData === data)
+    new String(fetchedData) must be(new String(data))
+    //assert(fetchedData === data)
   }
 
   it should "fetch data loaded from medium(~600KB) file" in {
@@ -129,7 +131,7 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
     inode.close()
     println("completed copy")
     println(inodeData.length)
-    inodeData must be(data)
+    new String(inodeData) must be(new String(data))
   }
 
   it should "result in medium file (~600KB)data stored through outputstream when fetched from input stream " in {

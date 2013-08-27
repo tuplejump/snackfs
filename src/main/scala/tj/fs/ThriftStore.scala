@@ -47,7 +47,7 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
         val mayBeKsDef: Try[KsDef] = Try(p.getResult)
 
         if (mayBeKsDef.isSuccess) {
-          prom failure new KeyspaceAlreadyExistsException("%s keyspace already exists".format(ksDef.getName))
+          prom success new Keyspace(ksDef.getName)
         } else {
 
           val response = AsyncUtil.executeAsync[system_add_keyspace_call](
@@ -248,7 +248,10 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
     val subBlockFuture = performGet(blockIdBuffer, new ColumnPath(BLOCK_COLUMN_FAMILY_NAME).setColumn(subBlockIdBuffer), CONSISTENCY_LEVEL_READ)
     val prom = promise[InputStream]()
     subBlockFuture.onSuccess {
-      case p => prom success ByteBufferUtil.inputStream(p.column.value)
+      case p =>
+        val stream: InputStream = ByteBufferUtil.inputStream(p.column.value)
+        println(stream.available())
+        prom success stream
     }
     subBlockFuture.onFailure {
       case f => prom failure f

@@ -9,6 +9,7 @@ import tj.model.{SubBlockMeta, BlockMeta, FileType, INode}
 import org.apache.hadoop.fs.permission.FsPermission
 import scala.concurrent.Await
 import scala.concurrent.duration._
+import scala.collection.mutable
 
 case class FileSystemOutputStream(store: FileSystemStore, path: Path,
                                   blockSize: Long, subBlockSize: Long,
@@ -22,7 +23,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
   private var subBlockOffset = 0
   private var blockOffset = 0
   private var position = 0
-  private var outBuffer = ByteBuffer.allocate(subBlockSize.asInstanceOf[Int])
+  private var outBuffer = Array.empty[Byte]
 
   private var subBlocksMeta = List[SubBlockMeta]()
   private var blocksMeta = List[BlockMeta]()
@@ -45,29 +46,36 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
     var lengthTemp = length
     var offsetTemp = offset
     while (lengthTemp > 0) {
+      //      println("offset:%d,length:%d".format(offset,length))
       val lengthToWrite = math.min(subBlockSize - position, lengthTemp).asInstanceOf[Int]
-      outBuffer = ByteBuffer.wrap(buf, offsetTemp, lengthToWrite)
+      val slice: Array[Byte] = buf.slice(offsetTemp, offsetTemp + lengthToWrite)
+      outBuffer = outBuffer ++ slice
       lengthTemp -= lengthToWrite
       offsetTemp += lengthToWrite
       position += lengthToWrite
       if (position == subBlockSize) {
+        println("flushing into subblock")
         flush()
       }
     }
   }
 
   private def endSubBlock() = {
-    val subBlockMeta = SubBlockMeta(UUIDGen.getTimeUUID, subBlockOffset, position)
-    Await.ready(store.storeSubBlock(blockId, subBlockMeta, outBuffer), AT_MOST)
-    subBlockOffset += position
-    bytesWrittenToBlock += position
-    subBlocksMeta = subBlocksMeta :+ subBlockMeta
-    position = 0
+    if (position != 0) {
+      val subBlockMeta = SubBlockMeta(UUIDGen.getTimeUUID, subBlockOffset, position)
+      Await.ready(store.storeSubBlock(blockId, subBlockMeta, ByteBuffer.wrap(outBuffer)), AT_MOST)
+      subBlockOffset += position
+      bytesWrittenToBlock += position
+      subBlocksMeta = subBlocksMeta :+ subBlockMeta
+      position = 0
+      outBuffer = Array.empty[Byte]
+    }
   }
 
   private def endBlock() = {
     val subBlockLengths = subBlocksMeta.map(_.length).sum
     val block = BlockMeta(blockId, blockOffset, subBlockLengths, subBlocksMeta)
+    println(block)
     blocksMeta = blocksMeta :+ block
     val user = System.getProperty("user.name")
     val permissions = FsPermission.getDefault

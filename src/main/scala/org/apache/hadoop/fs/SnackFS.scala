@@ -27,6 +27,8 @@ case class SnackFS() extends FileSystem {
 
   private val AT_MOST: FiniteDuration = 10 seconds
   private var store: FileSystemStore = null
+  private final val s: String = "snackfs"
+
 
   override def initialize(uri: URI, configuration: Configuration) = {
     super.initialize(uri, configuration)
@@ -45,8 +47,8 @@ case class SnackFS() extends FileSystem {
     def client = new AsyncClient(protocolFactory, clientManager, transport)
 
     store = new ThriftStore(client)
-    Await.ready(store.createKeyspace(store.buildSchema("FS", 1)), AT_MOST)
-    Await.ready(AsyncUtil.executeAsync[set_keyspace_call](client.set_keyspace("FS", _)), AT_MOST)
+    Await.ready(store.createKeyspace(store.buildSchema(s, 1)), AT_MOST)
+    Await.ready(AsyncUtil.executeAsync[set_keyspace_call](client.set_keyspace(s, _)), AT_MOST)
 
     val defaultSubBLockSize = 256L * 1024L
     subBlockSize = configuration.getLong("fs.local.subblock.size", defaultSubBLockSize)
@@ -91,7 +93,7 @@ case class SnackFS() extends FileSystem {
           result = false //Can't make a directory for path since its a file
         }
       case Failure(e) =>
-        val user = System.getProperty("user.name", "none")
+        val user = System.getProperty("user.name")
         val timestamp = System.currentTimeMillis()
         val iNode = INode(user, user, permission, FileType.DIRECTORY, null, timestamp)
         Await.ready(store.storeINode(path, iNode), AT_MOST)

@@ -16,7 +16,7 @@ object SnackfsBuild extends Build {
         "org.apache.cassandra" % "cassandra-thrift" % "1.2.6",
         "org.apache.cassandra" % "cassandra-all" % "1.2.6",
         "org.scalatest" %% "scalatest" % "1.9.1" % "test",
-        "org.apache.commons" % "commons-io" % "1.3.2",
+        "org.apache.commons" % "commons-io" % "1.3.2" % "test",
         "org.apache.hadoop" % "hadoop-common-test" % "0.22.0" % "test",
         "org.apache.hadoop" % "hadoop-hdfs-test" % "0.22.0" % "test",
         "org.apache.hadoop" % "hadoop-mapred" % "0.22.0" % "test",

@@ -5,7 +5,8 @@ import tj.model.BlockMeta
 import scala.concurrent.Await
 import scala.concurrent.duration._
 
-case class BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta) extends InputStream {
+case class
+BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta) extends InputStream {
   private val LENGTH = blockMeta.length
   private val AT_MOST: FiniteDuration = 10 seconds
 
@@ -31,6 +32,8 @@ case class BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta) extend
     targetSubBlockSize = subBlock.length
     targetSubBlockOffset = subBlock.offset
 
+    println(subBlock)
+
     Await.result(store.retrieveSubBlock(blockMeta.id, subBlock.id, offset), AT_MOST)
   }
 
@@ -53,6 +56,8 @@ case class BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta) extend
   }
 
   override def read(buf: Array[Byte], off: Int, len: Int): Int = {
+    println("block stream--offset: %d, length: %d, position: %d Length: %d".format(off, len, currentPosition, LENGTH))
+
     if (isClosed) {
       throw new IOException("Stream closed")
     }
@@ -66,6 +71,7 @@ case class BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta) extend
     if (len > 0) {
       while (result < len && currentPosition <= LENGTH - 1) {
         if (currentPosition > (targetSubBlockOffset + targetSubBlockSize - 1)) {
+          println("Will read new subblock")
           if (inputStream != null) {
             inputStream.close()
           }

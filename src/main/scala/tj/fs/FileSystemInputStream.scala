@@ -31,6 +31,7 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
   def seekToNewSource(targetPos: Long): Boolean = false
 
   private def findBlock(targetPosition: Long): InputStream = {
+    println("target "+targetPosition)
     val blockIndex = INODE.blocks.indexWhere(b => b.offset + b.length > targetPosition)
     if (blockIndex == -1) {
       throw new IOException("Impossible situation: could not find position " + targetPosition)
@@ -68,6 +69,7 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
   override def available: Int = (FILE_LENGTH - currentPosition).asInstanceOf[Int]
 
   override def read(buf: Array[Byte], off: Int, len: Int): Int = {
+    println("offset: %d, length: %d, position: %d".format(off, len, currentPosition))
     if (isClosed) {
       throw new IOException("Stream closed")
     }
@@ -89,6 +91,7 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
         }
         val realLen: Int = math.min(len - result, currentBlockSize + 1).asInstanceOf[Int]
         var readSize = blockStream.read(buf, off + result, realLen)
+        println("Data read: %d".format(readSize))
         result += readSize
         currentPosition += readSize
       }
