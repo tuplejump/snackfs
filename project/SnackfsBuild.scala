@@ -10,16 +10,18 @@ object SnackfsBuild extends Build {
       name := "snackfs",
       organization := "tj",
       version := "0.1-SNAPSHOT",
+      retrieveManaged := true,
       scalaVersion := "2.9.3",
 
-      libraryDependencies ++= Seq("org.apache.hadoop" % "hadoop-common" % "0.22.0",
+
+      libraryDependencies ++= Seq( "org.apache.hadoop" % "hadoop-core" % "1.2.1",
         "org.apache.cassandra" % "cassandra-thrift" % "1.2.6",
         "org.apache.cassandra" % "cassandra-all" % "1.2.6",
         "org.scalatest" %% "scalatest" % "1.9.1" % "test",
         "org.apache.commons" % "commons-io" % "1.3.2",
-        "org.apache.hadoop" % "hadoop-common-test" % "0.22.0" % "test",
-        "org.apache.hadoop" % "hadoop-hdfs-test" % "0.22.0" % "test",
-        "org.apache.hadoop" % "hadoop-mapred" % "0.22.0" % "test",
+        // "org.apache.hadoop" % "hadoop-common-test" % "1.2.1" % "test",
+        // "org.apache.hadoop" % "hadoop-hdfs-test" % "1.2.1" % "test",
+        // "org.apache.hadoop" % "hadoop-mapred" % "1.2.1" % "test",
         "com.novocode" % "junit-interface" % "0.10" % "test"
       )
     )

@@ -97,7 +97,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     fsData.close()
 
     val status = fs.getFileStatus(path)
-    status.isFile must be(true)
+    status.isDir must be(false)
     status.getLen must be(12)
     status.getPath must be(path)
   }
@@ -143,8 +143,8 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     val baseDirPath = new Path("/tmp")
     val result = fs.listStatus(baseDirPath)
     result.length must be(3)
-    result.filter(_.isFile).length must be(1)
-    result.filter(_.isDirectory).length must be(2)
+    result.filter(! _.isDir).length must be(1)
+    result.filter(_.isDir).length must be(2)
   }
 
   it should "delete all files/directories within the given directory" in {
@@ -167,7 +167,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     fileData2.close()
 
     val dirStatus = fs.getFileStatus(dirPath2)
-    dirStatus.isDirectory must be(true)
+    dirStatus.isDir must be(true)
 
     val baseDirPath = new Path("/tmp")
     val result = fs.delete(baseDirPath, true)
@@ -206,7 +206,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     exception2.getMessage must be("No such file exists")
 
     val fileStatus = fs.getFileStatus(filePath2)
-    fileStatus.isFile must be(true)
+    fileStatus.isDir must be(false)
   }
 
   it should "rename a directory" in {
@@ -231,16 +231,17 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
     val baseDirPath = new Path("/abc")
     val dirStatus1 = fs.listStatus(new Path("/abc"))
-    dirStatus1.filter(_.isFile).length must be(1)
+    dirStatus1.filter(! _.isDir).length must be(1)
 
     fs.mkdirs(new Path("/pqr"))
     fs.rename(baseDirPath, new Path("/pqr/lmn"))
 
     val dirStatus = fs.listStatus(new Path("/pqr/lmn"))
-    dirStatus.filter(_.isFile).length must be(1)
-    dirStatus.filter(_.isDirectory).length must be(3)
+    dirStatus.filter(! _.isDir).length must be(1)
+    dirStatus.filter(_.isDir).length must be(3)
 
     val fileStatus2 = fs.getFileStatus(new Path("/pqr/lmn/jkl/testfile"))
-    fileStatus2.isFile must be(true)
+    fileStatus2.isDir must be(false)
   }
+
 }

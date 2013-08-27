@@ -165,6 +165,10 @@ case class SnackFS() extends FileSystem {
     }
   }
 
+  override def delete(path: Path): Boolean = {
+    delete(path, true)
+  }
+
   override def getFileBlockLocations(fileStatus: FileStatus, start: Long, length: Long) = {
     var result: Array[BlockLocation] = null
     if (fileStatus != null) {

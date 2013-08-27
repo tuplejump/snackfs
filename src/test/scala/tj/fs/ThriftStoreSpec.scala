@@ -114,14 +114,14 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
   }
 
   it should "fetch all sub-paths" in {
-    val path1 = new Path("/tmp")
+    val path1 = new Path("/tmp1")
     val iNode1 = INode("user", "group", FsPermission.getDefault, FileType.DIRECTORY, null, timestamp)
     Await.ready(store.storeINode(path1, iNode1), 10 seconds)
 
-    val path2 = new Path("/tmp/user")
+    val path2 = new Path("/tmp1/user")
     Await.ready(store.storeINode(path2, iNode1), 10 seconds)
 
-    val path3 = new Path("/tmp/user/file")
+    val path3 = new Path("/tmp1/user/file")
     Await.ready(store.storeINode(path3, iNode), 10 seconds)
 
     val result = Await.result(store.fetchSubPaths(path1,true), 10 seconds)
@@ -149,6 +149,7 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
 
   override def afterAll() = {
     Await.ready(AsyncUtil.executeAsync[system_drop_keyspace_call](client.system_drop_keyspace("STORE", _)), 10 seconds)
+    Await.ready(AsyncUtil.executeAsync[system_drop_keyspace_call](client.system_drop_keyspace("FS", _)), 10 seconds)
     clientManager.stop()
   }
 
