@@ -296,4 +296,6 @@ case class SnackFS() extends FileSystem {
     }
     result
   }
+
+  def delete(p1: Path): Boolean = delete(p1,false)
 }

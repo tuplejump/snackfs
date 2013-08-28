@@ -1,6 +1,7 @@
 /*
 Test for FileSystem from Hadoop codebase
 */
+/*
 package org.apache.hadoop.fs;
 
 import java.io.DataInputStream;
@@ -74,7 +75,7 @@ public class TestFileSystem extends TestCase {
         fs.delete(READ_DIR, true);
     }
 
-    /*public static void testCommandFormat() throws Exception {
+    public static void testCommandFormat() throws Exception {
         // This should go to TestFsShell.java when it is added.
         CommandFormat cf;
         cf = new CommandFormat("copyToLocal", 2, 2, "crc", "ignoreCrc");
@@ -92,7 +93,7 @@ public class TestFileSystem extends TestCase {
         assertEquals(cf.parse(new String[]{"-setrep", "-R", "2", "/foo/bar"}, 1).get(1), "/foo/bar");
         cf = new CommandFormat("put", 2, 10000);
         assertEquals(cf.parse(new String[]{"-put", "-", "dest"}, 1).get(1), "dest");
-    }*/
+    }
 
     public static void createControlFile(FileSystem fs,
                                          long megaBytes, int numFiles,
@@ -668,4 +669,4 @@ public class TestFileSystem extends TestCase {
             super.close();
         }
     }
-}
+}*/

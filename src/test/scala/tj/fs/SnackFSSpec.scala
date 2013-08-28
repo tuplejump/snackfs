@@ -11,16 +11,16 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
   it should "create a new filesystem with given store" in {
     val fs = SnackFS()
-    val uri = URI.create("cfs://localhost:9000")
+    val uri = URI.create("snackfs://localhost:9000")
     fs.initialize(uri, new Configuration())
     fs.getUri must be(uri)
     val user = System.getProperty("user.name", "none")
-    fs.getWorkingDirectory must be(new Path("cfs://localhost:9000/user/" + user))
+    fs.getWorkingDirectory must be(new Path("snackfs://localhost:9000/user/" + user))
   }
 
   it should "add a directory" in {
     val fs = SnackFS()
-    val uri = URI.create("cfs://localhost:9000")
+    val uri = URI.create("snackfs://localhost:9000")
     fs.initialize(uri, new Configuration())
     val result = fs.mkdirs(new Path("/mytestdir"))
     assert(result === true)
@@ -28,7 +28,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
   it should "create an entry for a file" in {
     val fs = SnackFS()
-    val uri = URI.create("cfs://localhost:9000")
+    val uri = URI.create("snackfs://localhost:9000")
     fs.initialize(uri, new Configuration())
     val fsData = fs.create(new Path("/home/Downloads/JSONParser.js"))
     fsData.write("SOME CONTENT".getBytes)
@@ -38,7 +38,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
   it should "not when trying to add an existing file as a directory" in {
     val fs = SnackFS()
-    val uri = URI.create("cfs://localhost:9000")
+    val uri = URI.create("snackfs://localhost:9000")
     fs.initialize(uri, new Configuration())
     val fsData = fs.create(new Path("/home/Downloads/someTest"))
     fsData.write("SOME CONTENT".getBytes)
@@ -49,7 +49,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
   it should "allow to read from a file" in {
     val fs = SnackFS()
-    val uri = URI.create("cfs://localhost:9000")
+    val uri = URI.create("snackfs://localhost:9000")
     fs.initialize(uri, new Configuration())
     val fsData = fs.create(new Path("/home/Downloads/random"))
     fsData.write("SOME CONTENT".getBytes)
@@ -66,7 +66,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
   it should "throw an exception when trying to open a directory" in {
     val fs = SnackFS()
-    val uri = URI.create("cfs://localhost:9000")
+    val uri = URI.create("snackfs://localhost:9000")
     fs.initialize(uri, new Configuration())
     val path = new Path("/test")
     fs.mkdirs(path)
@@ -78,7 +78,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
   it should "throw an exception when trying to open a file which doesn't exist" in {
     val fs = SnackFS()
-    val uri = URI.create("cfs://localhost:9000")
+    val uri = URI.create("snackfs://localhost:9000")
     fs.initialize(uri, new Configuration())
     val path = new Path("/newFile")
     val exception = intercept[IOException] {
@@ -89,7 +89,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
   it should "get file status" in {
     val fs = SnackFS()
-    val uri = URI.create("cfs://localhost:9000")
+    val uri = URI.create("snackfs://localhost:9000")
     fs.initialize(uri, new Configuration())
     val path = new Path("/home/Downloads/testStatus")
     val fsData = fs.create(path)
@@ -97,14 +97,14 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     fsData.close()
 
     val status = fs.getFileStatus(path)
-    status.isFile must be(true)
+    !status.isDir must be(true)
     status.getLen must be(12)
     status.getPath must be(path)
   }
 
   it should "get file block locations" in {
     val fs = SnackFS()
-    val uri = URI.create("cfs://localhost:9000")
+    val uri = URI.create("snackfs://localhost:9000")
     fs.initialize(uri, new Configuration())
     val path = new Path("/home/Downloads/testLocations")
     val fsData = fs.create(path)
@@ -123,7 +123,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
   it should "list all files/directories within the given directory" in {
     val fs = SnackFS()
-    val uri = URI.create("cfs://localhost:9000")
+    val uri = URI.create("snackfs://localhost:9000")
     fs.initialize(uri, new Configuration())
     val dirPath1 = new Path("/tmp/user")
     fs.mkdirs(dirPath1)
@@ -143,13 +143,13 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     val baseDirPath = new Path("/tmp")
     val result = fs.listStatus(baseDirPath)
     result.length must be(3)
-    result.filter(_.isFile).length must be(1)
-    result.filter(_.isDirectory).length must be(2)
+    result.filter(!_.isDir).length must be(1)
+    result.filter(_.isDir).length must be(2)
   }
 
   it should "delete all files/directories within the given directory" in {
     val fs = SnackFS()
-    val uri = URI.create("cfs://localhost:9000")
+    val uri = URI.create("snackfs://localhost:9000")
     fs.initialize(uri, new Configuration())
     val dirPath1 = new Path("/tmp1/user1")
     fs.mkdirs(dirPath1)
@@ -167,7 +167,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     fileData2.close()
 
     val dirStatus = fs.getFileStatus(dirPath2)
-    dirStatus.isDirectory must be(true)
+    dirStatus.isDir must be(true)
 
     val baseDirPath = new Path("/tmp1")
     val result = fs.delete(baseDirPath, true)
@@ -192,7 +192,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
   it should "rename a file" in {
     val fs = SnackFS()
-    val uri = URI.create("cfs://localhost:9000")
+    val uri = URI.create("snackfs://localhost:9000")
     fs.initialize(uri, new Configuration())
 
     val filePath1 = new Path("/tmp2/testRename")
@@ -212,12 +212,12 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     exception2.getMessage must be("No such file exists")
 
     val fileStatus = fs.getFileStatus(filePath2)
-    fileStatus.isFile must be(true)
+    !fileStatus.isDir must be(true)
   }
 
   it should "rename a directory" in {
     val fs = SnackFS()
-    val uri = URI.create("cfs://localhost:9000")
+    val uri = URI.create("snackfs://localhost:9000")
     fs.initialize(uri, new Configuration())
 
     val dirPath1 = new Path("/abc/user")
@@ -237,16 +237,16 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
     val baseDirPath = new Path("/abc")
     val dirStatus1 = fs.listStatus(new Path("/abc"))
-    dirStatus1.filter(_.isFile).length must be(1)
+    dirStatus1.filter(!_.isDir).length must be(1)
 
     fs.mkdirs(new Path("/pqr"))
     fs.rename(baseDirPath, new Path("/pqr/lmn"))
 
     val dirStatus = fs.listStatus(new Path("/pqr/lmn"))
-    dirStatus.filter(_.isFile).length must be(1)
-    dirStatus.filter(_.isDirectory).length must be(3)
+    dirStatus.filter(!_.isDir).length must be(1)
+    dirStatus.filter(_.isDir).length must be(3)
 
     val fileStatus2 = fs.getFileStatus(new Path("/pqr/lmn/jkl/testfile"))
-    fileStatus2.isFile must be(true)
+    !fileStatus2.isDir must be(true)
   }
 }
