@@ -24,6 +24,7 @@ import junit.framework.TestCase;
 import org.apache.commons.logging.Log;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.conf.Configured;
+import org.apache.hadoop.fs.shell.CommandFormat;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.apache.hadoop.hdfs.server.namenode.NameNode;
 import org.apache.hadoop.io.LongWritable;
@@ -33,7 +34,6 @@ import org.apache.hadoop.io.SequenceFile.CompressionType;
 import org.apache.hadoop.mapred.*;
 import org.apache.hadoop.mapred.lib.LongSumReducer;
 import org.apache.hadoop.security.UserGroupInformation;
-import org.apache.hadoop.fs.SnackFS;
 
 public class TestFileSystem extends TestCase {
     private static final Log LOG = FileSystem.LOG;

@@ -1,12 +1,11 @@
 package org.apache.hadoop.fs
 
-import org.apache.hadoop.fs._
 import java.net.URI
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
 import org.apache.hadoop.conf.Configuration
 import java.io.{FileNotFoundException, IOException}
-import scala.concurrent.{ExecutionContext, Await}
+import scala.concurrent.Await
 import scala.concurrent.duration._
 import tj.model.{FileType, INode}
 
@@ -222,7 +221,10 @@ case class SnackFS() extends FileSystem {
           val contents = listStatus(path)
           if (contents.length == 0) Await.ready(store.deleteINode(absolutePath), AT_MOST)
           else if (!recursive) throw new IOException("Directory is not empty")
-          else result = contents.map(p => delete(p.getPath, recursive)).reduce(_ && _)
+          else {
+            result = contents.map(p => delete(p.getPath, recursive)).reduce(_ && _)
+            Await.ready(store.deleteINode(absolutePath), AT_MOST)
+          }
         }
       case Failure(e) => result = false //No such file
     }

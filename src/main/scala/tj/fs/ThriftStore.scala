@@ -13,7 +13,6 @@ import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import java.nio.ByteBuffer
 import scala.util.Try
-import tj.exceptions.KeyspaceAlreadyExistsException
 import tj.model._
 import org.apache.cassandra.locator.SimpleStrategy
 import org.apache.hadoop.fs.Path
@@ -250,7 +249,6 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
     subBlockFuture.onSuccess {
       case p =>
         val stream: InputStream = ByteBufferUtil.inputStream(p.column.value)
-        println(stream.available())
         prom success stream
     }
     subBlockFuture.onFailure {

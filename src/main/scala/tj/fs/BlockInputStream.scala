@@ -32,8 +32,6 @@ BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta) extends InputStre
     targetSubBlockSize = subBlock.length
     targetSubBlockOffset = subBlock.offset
 
-    println(subBlock)
-
     Await.result(store.retrieveSubBlock(blockMeta.id, subBlock.id, offset), AT_MOST)
   }
 
@@ -56,8 +54,6 @@ BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta) extends InputStre
   }
 
   override def read(buf: Array[Byte], off: Int, len: Int): Int = {
-    println("block stream--offset: %d, length: %d, position: %d Length: %d".format(off, len, currentPosition, LENGTH))
-
     if (isClosed) {
       throw new IOException("Stream closed")
     }
@@ -71,7 +67,6 @@ BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta) extends InputStre
     if (len > 0) {
       while (result < len && currentPosition <= LENGTH - 1) {
         if (currentPosition > (targetSubBlockOffset + targetSubBlockSize - 1)) {
-          println("Will read new subblock")
           if (inputStream != null) {
             inputStream.close()
           }

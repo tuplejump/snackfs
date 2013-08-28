@@ -9,7 +9,6 @@ import tj.model.{SubBlockMeta, BlockMeta, FileType, INode}
 import org.apache.hadoop.fs.permission.FsPermission
 import scala.concurrent.Await
 import scala.concurrent.duration._
-import scala.collection.mutable
 
 case class FileSystemOutputStream(store: FileSystemStore, path: Path,
                                   blockSize: Long, subBlockSize: Long,
@@ -46,7 +45,6 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
     var lengthTemp = length
     var offsetTemp = offset
     while (lengthTemp > 0) {
-      //      println("offset:%d,length:%d".format(offset,length))
       val lengthToWrite = math.min(subBlockSize - position, lengthTemp).asInstanceOf[Int]
       val slice: Array[Byte] = buf.slice(offsetTemp, offsetTemp + lengthToWrite)
       outBuffer = outBuffer ++ slice
@@ -54,7 +52,6 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
       offsetTemp += lengthToWrite
       position += lengthToWrite
       if (position == subBlockSize) {
-        println("flushing into subblock")
         flush()
       }
     }
@@ -75,7 +72,6 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
   private def endBlock() = {
     val subBlockLengths = subBlocksMeta.map(_.length).sum
     val block = BlockMeta(blockId, blockOffset, subBlockLengths, subBlocksMeta)
-    println(block)
     blocksMeta = blocksMeta :+ block
     val user = System.getProperty("user.name")
     val permissions = FsPermission.getDefault

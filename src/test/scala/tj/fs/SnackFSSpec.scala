@@ -30,7 +30,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     val fs = SnackFS()
     val uri = URI.create("cfs://localhost:9000")
     fs.initialize(uri, new Configuration())
-    val fsData = fs.create(new Path("/home/shiti/Downloads/JSONParser.js"))
+    val fsData = fs.create(new Path("/home/Downloads/JSONParser.js"))
     fsData.write("SOME CONTENT".getBytes)
     val position = fsData.getPos
     position must be(12)
@@ -40,10 +40,10 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     val fs = SnackFS()
     val uri = URI.create("cfs://localhost:9000")
     fs.initialize(uri, new Configuration())
-    val fsData = fs.create(new Path("/home/shiti/Downloads/SOMEFILE"))
+    val fsData = fs.create(new Path("/home/Downloads/someTest"))
     fsData.write("SOME CONTENT".getBytes)
     fsData.close()
-    val path = new Path("/home/shiti/Downloads/SOMEFILE")
+    val path = new Path("/home/Downloads/someTest")
     fs.mkdirs(path) must be(false)
   }
 
@@ -51,11 +51,11 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     val fs = SnackFS()
     val uri = URI.create("cfs://localhost:9000")
     fs.initialize(uri, new Configuration())
-    val fsData = fs.create(new Path("/home/shiti/Downloads/SOMEFILE"))
+    val fsData = fs.create(new Path("/home/Downloads/random"))
     fsData.write("SOME CONTENT".getBytes)
     fsData.close()
 
-    val is = fs.open(new Path("/home/shiti/Downloads/SOMEFILE"))
+    val is = fs.open(new Path("/home/Downloads/random"))
     var dataArray = new Array[Byte](12)
     is.readFully(0, dataArray)
     is.close()
@@ -91,7 +91,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     val fs = SnackFS()
     val uri = URI.create("cfs://localhost:9000")
     fs.initialize(uri, new Configuration())
-    val path = new Path("/home/shiti/Downloads/SOMEFILE")
+    val path = new Path("/home/Downloads/testStatus")
     val fsData = fs.create(path)
     fsData.write("SOME CONTENT".getBytes)
     fsData.close()
@@ -106,7 +106,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     val fs = SnackFS()
     val uri = URI.create("cfs://localhost:9000")
     fs.initialize(uri, new Configuration())
-    val path = new Path("/home/shiti/Downloads/SOMEFILE")
+    val path = new Path("/home/Downloads/testLocations")
     val fsData = fs.create(path)
     fsData.write("This is a test to check the block location details".getBytes)
     fsData.write("This is a test to check the block location details".getBytes)
@@ -130,7 +130,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     val dirPath2 = new Path("/tmp/local")
     fs.mkdirs(dirPath2)
 
-    val filePath1 = new Path("/tmp/testfile")
+    val filePath1 = new Path("/tmp/testFile")
     val fileData1 = fs.create(filePath1)
     fileData1.write("This is a test to check list functionality".getBytes)
     fileData1.close()
@@ -151,17 +151,17 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     val fs = SnackFS()
     val uri = URI.create("cfs://localhost:9000")
     fs.initialize(uri, new Configuration())
-    val dirPath1 = new Path("/tmp/user")
+    val dirPath1 = new Path("/tmp1/user1")
     fs.mkdirs(dirPath1)
-    val dirPath2 = new Path("/tmp/local")
+    val dirPath2 = new Path("/tmp1/local1")
     fs.mkdirs(dirPath2)
 
-    val filePath1 = new Path("/tmp/testfile")
+    val filePath1 = new Path("/tmp1/testFile1")
     val fileData1 = fs.create(filePath1)
     fileData1.write("This is a test to check list functionality".getBytes)
     fileData1.close()
 
-    val filePath2 = new Path("/tmp/user/file")
+    val filePath2 = new Path("/tmp1/user1/file")
     val fileData2 = fs.create(filePath2)
     fileData2.write("This is a test to check list functionality".getBytes)
     fileData2.close()
@@ -169,7 +169,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     val dirStatus = fs.getFileStatus(dirPath2)
     dirStatus.isDirectory must be(true)
 
-    val baseDirPath = new Path("/tmp")
+    val baseDirPath = new Path("/tmp1")
     val result = fs.delete(baseDirPath, true)
     result must be(true)
 
@@ -182,6 +182,12 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
       val dir = fs.getFileStatus(filePath2)
     }
     exception2.getMessage must be("No such file exists")
+
+    val exception3 = intercept[FileNotFoundException] {
+      val dir = fs.getFileStatus(baseDirPath)
+    }
+    exception3.getMessage must be("No such file exists")
+
   }
 
   it should "rename a file" in {
@@ -189,12 +195,12 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     val uri = URI.create("cfs://localhost:9000")
     fs.initialize(uri, new Configuration())
 
-    val filePath1 = new Path("/tmp/testfile")
+    val filePath1 = new Path("/tmp2/testRename")
     val fileData1 = fs.create(filePath1)
     fileData1.write("This is a test to check rename functionality".getBytes)
     fileData1.close()
 
-    val filePath2 = new Path("/tmp/file")
+    val filePath2 = new Path("/tmp2/newName")
 
     val result = fs.rename(filePath1, filePath2)
 

@@ -7,7 +7,6 @@ import scala.concurrent.duration._
 import scala.concurrent.Await
 
 import org.scalatest.{BeforeAndAfterAll, FlatSpec}
-import tj.exceptions.KeyspaceAlreadyExistsException
 import tj.model._
 import org.apache.cassandra.thrift.Cassandra.AsyncClient
 import tj.util.AsyncUtil
@@ -21,7 +20,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import org.apache.cassandra.utils.ByteBufferUtil
 import org.apache.commons.io.IOUtils
 import org.scalatest.matchers.MustMatchers
-import org.apache.cassandra.thrift.{CqlRow, NotFoundException}
+import org.apache.cassandra.thrift.NotFoundException
 
 class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
@@ -49,14 +48,6 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
     val ks = store.createKeyspace(store.buildSchema("STORE", 1))
     val status = Await.result(ks, 5 seconds)
     assert(status.isInstanceOf[Keyspace])
-  }
-
-  it should "throw KeyspaceAlreadyExistsException to create another keyspace STORE" in {
-    val ks = store.createKeyspace(store.buildSchema("STORE", 1))
-    val exception = intercept[KeyspaceAlreadyExistsException] {
-      val status = Await.result(ks, 5 seconds)
-    }
-    assert(exception.getMessage === "STORE keyspace already exists")
   }
 
   it should "set keyspace to STORE" in {

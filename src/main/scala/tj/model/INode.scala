@@ -73,7 +73,7 @@ object INode {
 
       fType match {
         case FileType.DIRECTORY => {
-          result = INode(userBuffer.toString, groupBuffer.toString, perms, fType, null, timestamp)
+          result = INode(new String(userBuffer), new String(groupBuffer), perms, fType, null, timestamp)
         }
         case FileType.FILE => {
           val blockLength = dataInputStream.readInt
