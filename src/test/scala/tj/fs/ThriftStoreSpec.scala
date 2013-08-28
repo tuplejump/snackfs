@@ -16,7 +16,6 @@ import java.util.UUID
 import tj.model.SubBlockMeta
 import java.net.URI
 import org.apache.hadoop.fs.Path
-import scala.concurrent.ExecutionContext.Implicits.global
 import org.apache.cassandra.utils.ByteBufferUtil
 import org.apache.commons.io.IOUtils
 import org.scalatest.matchers.MustMatchers
