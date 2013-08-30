@@ -31,7 +31,7 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
   val filesystem = "snackfs://localhost:9000/"
 
   val testingDir = filesystem + "testFSShell/"
-  val projectHome = "pathto/snackfs/src/" //to be set
+  val projectHome = "/home/shiti/work/tj/snackfs/src/" //to be set
 
   val listCommand = hadoopFSCommands ++ Seq("-lsr", filesystem)
 
@@ -225,19 +225,17 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
     listOutPut must include("/emptyFile.txt")
   }
 
- it should "move multiple files" in {
-    println("move multiple")
+  it should "move multiple files" in {
     val source1 = filesystem + "small.txt"
     val source2 = filesystem + "vsmall.txt"
     val destination = filesystem + "testMvCommand/"
     val mkdirCommand = hadoopFSCommands ++ Seq("-mkdir", destination)
-    println(mkdirCommand)
-    val a = executeAndGetOutput(mkdirCommand)
-    println(a)
+    executeAndGetOutput(mkdirCommand)
     val command = hadoopFSCommands ++ Seq("-mv", source1, source2, destination)
-    println(command)
-    val output = executeAndGetOutput(command)
-    println(output)
+    executeAndGetOutput(command)
+    val listOutPut = executeAndGetOutput(listCommand)
+    listOutPut must include("/testMvCommand/small.txt")
+    listOutPut must include("/testMvCommand/vsmall.txt")
   }
 
   //rm
