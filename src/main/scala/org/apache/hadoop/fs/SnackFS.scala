@@ -244,39 +244,86 @@ case class SnackFS() extends FileSystem {
             case Failure(e) => {
               val maybeDstParent = Try(Await.result(store.retrieveINode(dst.getParent), AT_MOST))
               maybeDstParent match {
-                case Failure(e2) => throw new IOException("Destination %s directory does not exist.".format(dst.getParent))
+                case Failure(e2) =>
+                  throw new IOException("Destination %s directory does not exist.".format(dst.getParent))
                 case Success(dstParentINode: INode) => {
                   if (dstParentINode.isFile) {
                     throw new IOException("A file exists with parent of destination.")
                   }
                   if (iNode.isDirectory) {
-                    mkdirs(dst)
-                    val contents = Await.result(store.fetchSubPaths(srcPath, true), AT_MOST)
-                    if (contents.size > 0) {
-                      val srcPathString = src.toUri.getPath
-                      val dstPathString = dst.toUri.getPath
-                      contents.map(path => {
-                        val actualINode = Await.result(store.retrieveINode(makeQualified(path)), AT_MOST)
-                        val oldPathString = path.toUri.getPath
-                        val changedPathString = oldPathString.replaceFirst(srcPathString, dstPathString)
-                        val changedPath = new Path(changedPathString)
-                        mkdirs(changedPath.getParent)
-                        Await.ready(store.deleteINode(makeQualified(path)), AT_MOST)
-                        Await.ready(store.storeINode(changedPath, actualINode), AT_MOST)
-                      })
-                    }
+                    renameDir(src, dst)
                   }
-                  Await.ready(store.deleteINode(srcPath), AT_MOST)
-                  Await.ready(store.storeINode(dstPath, iNode), AT_MOST)
+                  renameINode(srcPath, dstPath, iNode)
                 }
               }
             }
             case Success(dstINode: INode) =>
-              throw new IOException("A file or directory exists at %s, cannot overwrite".format(dst))
+              if (dstINode.isFile) {
+                throw new IOException("A file %s already exists".format(dstPath))
+              }
+              else {
+                var dstPathString = dstPath.toUri.getPath
+                if (!dstPathString.endsWith("/")) {
+                  dstPathString = dstPathString + "/"
+                }
+                val fileName = src.getName
+                val updatedPath = new Path(dstPathString + fileName)
+
+                val mayBeExistingINode = Try(Await.result(store.retrieveINode(updatedPath), AT_MOST))
+
+                mayBeExistingINode match {
+                  case Failure(e) =>
+                    if (iNode.isFile) {
+                      renameINode(srcPath, updatedPath, iNode)
+                    } else {
+                      renameDir(srcPath, updatedPath)
+                    }
+                  case Success(existingINode: INode) =>
+                    if (existingINode.isFile) {
+                      if (iNode.isFile) {
+                        renameINode(srcPath, updatedPath, iNode)
+                      } else
+                        throw new IOException("cannot overwrite non-directory with a directory")
+                    } else {
+                      if (iNode.isFile)
+                        throw new IOException("cannot overwrite directory with a non-directory")
+                      else {
+                        val contents = Await.result(store.fetchSubPaths(updatedPath, false), AT_MOST)
+                        if (contents.size > 0)
+                          throw new IOException("cannot move %s to %s - directory not empty".format(src, dst))
+                        else
+                          renameDir(srcPath, updatedPath)
+                      }
+                    }
+                }
+              }
           }
       }
     }
     true
+  }
+
+  def renameINode(originalPath: Path, updatedPath: Path, iNode: INode) = {
+    Await.ready(store.deleteINode(originalPath), AT_MOST)
+    Await.ready(store.storeINode(updatedPath, iNode), AT_MOST)
+  }
+
+  def renameDir(src: Path, dst: Path) = {
+    val srcPath = makeAbsolute(src)
+    mkdirs(dst)
+    val contents = Await.result(store.fetchSubPaths(srcPath, true), AT_MOST)
+    if (contents.size > 0) {
+      val srcPathString = src.toUri.getPath
+      val dstPathString = dst.toUri.getPath
+      contents.map(path => {
+        val actualINode = Await.result(store.retrieveINode(makeQualified(path)), AT_MOST)
+        val oldPathString = path.toUri.getPath
+        val changedPathString = oldPathString.replaceFirst(srcPathString, dstPathString)
+        val changedPath = new Path(changedPathString)
+        mkdirs(changedPath.getParent)
+        renameINode(makeQualified(path), changedPath, actualINode)
+      })
+    }
   }
 
   def listStatus(path: Path): Array[FileStatus] = {
@@ -297,5 +344,5 @@ case class SnackFS() extends FileSystem {
     result
   }
 
-  def delete(p1: Path): Boolean = delete(p1,false)
+  def delete(p1: Path): Boolean = delete(p1, false)
 }
