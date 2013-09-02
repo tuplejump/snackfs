@@ -39,7 +39,8 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
   it should "make a new directory" in {
     val command = hadoopFSCommands ++ Seq("-mkdir", testingDir)
     val output = executeAndGetOutput(command)
-    output must be("[]")
+    val listoutPut = executeAndGetOutput(listCommand)
+    listoutPut must include("/testFSShell")
   }
 
   it should "not make a new directory with the name of an existing one" in {
@@ -55,8 +56,7 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
   it should "copy a file into the filesystem using copyFromLocal" in {
     val source = projectHome + "test/resources/small.txt"
     val command = hadoopFSCommands ++ Seq("-copyFromLocal", source, testingDir)
-    val output = executeAndGetOutput(command)
-    output must be("[]")
+    executeAndGetOutput(command)
 
     val listoutPut = executeAndGetOutput(listCommand)
     listoutPut must include("small.txt")
@@ -76,8 +76,10 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
     val destination = projectHome + "test/resources/TestSmall.txt"
     val source = testingDir + "small.txt"
     val command = hadoopFSCommands ++ Seq("-copyToLocal", source, destination)
-    val output = executeAndGetOutput(command)
-    output must be("[]")
+    executeAndGetOutput(command)
+
+    val copiedFile = new File(destination)
+    copiedFile.exists() must be(true)
   }
 
   it should "not overwrite a file using copyToLocal" in {
@@ -88,6 +90,17 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
       val output = executeAndGetOutput(command)
     }
     exception.getMessage must include("already exists")
+  }
+
+  //get
+  it should "copy a file from the filesystem using get" in {
+    val destination = projectHome + "test/resources/TestGetSmall.txt"
+    val source = testingDir + "small.txt"
+    val command = hadoopFSCommands ++ Seq("-copyToLocal", source, destination)
+    executeAndGetOutput(command)
+
+    val copiedFile = new File(destination)
+    copiedFile.exists() must be(true)
   }
 
   //cat
@@ -106,8 +119,11 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
     val destination = filesystem + "testCpCommand/"
     val source = testingDir
     val command = hadoopFSCommands ++ Seq("-cp", source, destination)
-    val output = executeAndGetOutput(command)
-    output must be("[]")
+    executeAndGetOutput(command)
+
+    val listoutPut = executeAndGetOutput(listCommand)
+    listoutPut must include("/testCpCommand/small.txt")
+    listoutPut must include("/testCpCommand/vsmall.txt")
   }
 
   //du
