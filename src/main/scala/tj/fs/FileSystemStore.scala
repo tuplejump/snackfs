@@ -11,7 +11,7 @@ import tj.model.GenericOpSuccess
 import java.io.InputStream
 
 trait FileSystemStore {
-  def buildSchema(keyspace: String, replicationFactor: Int): KsDef
+  def buildSchema(keyspace: String, replicationFactor: Int, replicationStrategy: String): KsDef
 
   def createKeyspace(ksDef: KsDef): Future[Keyspace]
 

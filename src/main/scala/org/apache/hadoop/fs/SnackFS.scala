@@ -17,6 +17,8 @@ import org.apache.cassandra.thrift.Cassandra.AsyncClient
 import tj.util.AsyncUtil
 import org.apache.cassandra.thrift.Cassandra.AsyncClient.set_keyspace_call
 import tj.fs.{FileSystemOutputStream, FileSystemInputStream, ThriftStore, FileSystemStore}
+import org.apache.cassandra.thrift.ConsistencyLevel
+import org.apache.cassandra.locator.SimpleStrategy
 
 case class SnackFS() extends FileSystem {
 
@@ -26,8 +28,6 @@ case class SnackFS() extends FileSystem {
 
   private val AT_MOST: FiniteDuration = 10 seconds
   private var store: FileSystemStore = null
-  private final val s: String = "snackfs"
-
 
   override def initialize(uri: URI, configuration: Configuration) = {
     super.initialize(uri, configuration)
@@ -38,19 +38,50 @@ case class SnackFS() extends FileSystem {
     val directory = new Path("/user", System.getProperty("user.name"))
     currentDirectory = makeQualified(directory)
 
-    //store initialize hard-coding temporarily
+    var host = configuration.get("fs.cassandra.host")
+    if (host == null) {
+      host = "127.0.0.1"
+    }
+    val port = configuration.getInt("fs.cassandra.port", 9160)
+
     val clientManager = new TAsyncClientManager()
     val protocolFactory = new TBinaryProtocol.Factory()
-    val transport = new TNonblockingSocket("127.0.0.1", 9160)
+    val transport = new TNonblockingSocket(host, port)
 
     def client = new AsyncClient(protocolFactory, clientManager, transport)
 
-    store = new ThriftStore(client)
-    Await.ready(store.createKeyspace(store.buildSchema(s, 1)), AT_MOST)
-    Await.ready(AsyncUtil.executeAsync[set_keyspace_call](client.set_keyspace(s, _)), AT_MOST)
+    val consistencyLevelWrite = configuration.get("fs.consistencyLevel.write")
+    val consistencyLevelRead = configuration.get("fs.consistencyLevel.read")
 
-    val defaultSubBLockSize = 256L * 1024L
-    subBlockSize = configuration.getLong("fs.local.subblock.size", defaultSubBLockSize)
+    if (consistencyLevelWrite == null && consistencyLevelRead == null) {
+      store = new ThriftStore(client)
+    } else if (consistencyLevelWrite != null && consistencyLevelRead == null) {
+      val writeConsistency = ConsistencyLevel.valueOf(consistencyLevelWrite)
+      store = new ThriftStore(client, writeConsistency)
+    } else if (consistencyLevelWrite == null && consistencyLevelRead != null) {
+      val readConsistency = ConsistencyLevel.valueOf(consistencyLevelRead)
+      store = new ThriftStore(client, consistencyLevelRead = readConsistency)
+    } else {
+      val writeConsistency = ConsistencyLevel.valueOf(consistencyLevelWrite)
+      val readConsistency = ConsistencyLevel.valueOf(consistencyLevelRead)
+      store = new ThriftStore(client, writeConsistency, readConsistency)
+    }
+
+    var keyspaceName = configuration.get("fs.keyspace")
+    if (keyspaceName == null) {
+      keyspaceName = "snackfs"
+    }
+    val replicationFactor = configuration.getInt("fs.replicationFactor", 3)
+    var replicationStrategy = configuration.get("fs.replicationStrategy")
+    if (replicationStrategy == null) {
+      replicationStrategy = classOf[SimpleStrategy].getCanonicalName
+    }
+
+    Await.ready(store.createKeyspace(store.buildSchema(keyspaceName, replicationFactor,replicationStrategy)), AT_MOST)
+    Await.ready(AsyncUtil.executeAsync[set_keyspace_call](client.set_keyspace(keyspaceName, _)), AT_MOST)
+
+    val defaultSubBLockSize = 256 * 1024L
+    subBlockSize = configuration.getLong("fs.subblock.size", defaultSubBLockSize)
   }
 
   private def makeAbsolute(path: Path): Path = {

@@ -14,7 +14,6 @@ import scala.collection.JavaConverters._
 import java.nio.ByteBuffer
 import scala.util.Try
 import tj.model._
-import org.apache.cassandra.locator.SimpleStrategy
 import org.apache.hadoop.fs.Path
 import java.math.BigInteger
 import java.util.UUID
@@ -22,7 +21,9 @@ import tj.model.SubBlockMeta
 import tj.model.GenericOpSuccess
 import java.io.InputStream
 
-class ThriftStore(client: AsyncClient) extends FileSystemStore {
+class ThriftStore(client: AsyncClient,
+                  consistencyLevelWrite: ConsistencyLevel = ConsistencyLevel.QUORUM,
+                  consistencyLevelRead: ConsistencyLevel = ConsistencyLevel.QUORUM) extends FileSystemStore {
 
 
   private val PATH_COLUMN: ByteBuffer = ByteBufferUtil.bytes("path")
@@ -30,8 +31,6 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
   private val SENTINEL_COLUMN: ByteBuffer = ByteBufferUtil.bytes("sentinel")
   private val SENTINEL_VALUE: ByteBuffer = ByteBufferUtil.bytes("x")
   private val DATA_COLUMN: ByteBuffer = ByteBufferUtil.bytes("data")
-  private val CONSISTENCY_LEVEL_WRITE = ConsistencyLevel.QUORUM
-  private val CONSISTENCY_LEVEL_READ = ConsistencyLevel.QUORUM
 
   private val INODE_COLUMN_FAMILY_NAME = "inode"
   private val BLOCK_COLUMN_FAMILY_NAME = "sblock"
@@ -113,11 +112,11 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
     columnFamily
   }
 
-  def buildSchema(keyspace: String, replicationFactor: Int): KsDef = {
+  def buildSchema(keyspace: String, replicationFactor: Int,replicationStrategy:String): KsDef = {
     val inode = createINodeCF(INODE_COLUMN_FAMILY_NAME, keyspace)
     val sblock = createSBlockCF(BLOCK_COLUMN_FAMILY_NAME, keyspace, 16, 64)
 
-    val ksDef: KsDef = new KsDef(keyspace, classOf[SimpleStrategy].getCanonicalName,
+    val ksDef: KsDef = new KsDef(keyspace, replicationStrategy,
       List(inode, sblock))
     ksDef.setStrategy_options(Map("replication_factor" -> replicationFactor.toString))
 
@@ -166,7 +165,7 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
     val data: ByteBuffer = iNode.serialize
     val timestamp = iNode.timestamp
     val mutationMap: Map[ByteBuffer, java.util.Map[String, java.util.List[Mutation]]] = generateMutationforINode(data, path, timestamp)
-    val iNodeFuture = AsyncUtil.executeAsync[batch_mutate_call](client.batch_mutate(mutationMap, CONSISTENCY_LEVEL_WRITE, _))
+    val iNodeFuture = AsyncUtil.executeAsync[batch_mutate_call](client.batch_mutate(mutationMap, consistencyLevelWrite, _))
     val prom = promise[GenericOpSuccess]()
     iNodeFuture.onSuccess {
       case p => {
@@ -206,7 +205,7 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
     val inodeDataPath = new ColumnPath(INODE_COLUMN_FAMILY_NAME).setColumn(DATA_COLUMN)
 
     val inodePromise = promise[INode]()
-    val pathInfo = performGet(pathKey, inodeDataPath, CONSISTENCY_LEVEL_READ)
+    val pathInfo = performGet(pathKey, inodeDataPath, consistencyLevelRead)
     pathInfo.onSuccess {
       case p =>
         inodePromise success INode.deserialize(ByteBufferUtil.inputStream(p.column.value), p.column.getTimestamp)
@@ -230,7 +229,7 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
 
     val prom = promise[GenericOpSuccess]()
     val subBlockFuture = AsyncUtil.executeAsync[insert_call](
-      client.insert(parentBlockId, sblockParent, column, CONSISTENCY_LEVEL_WRITE, _))
+      client.insert(parentBlockId, sblockParent, column, consistencyLevelWrite, _))
 
     subBlockFuture.onSuccess {
       case p => prom success GenericOpSuccess()
@@ -244,7 +243,7 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
   def retrieveSubBlock(blockId: UUID, subBlockId: UUID, byteRangeStart: Long): Future[InputStream] = {
     val blockIdBuffer: ByteBuffer = ByteBufferUtil.bytes(blockId)
     val subBlockIdBuffer = ByteBufferUtil.bytes(subBlockId)
-    val subBlockFuture = performGet(blockIdBuffer, new ColumnPath(BLOCK_COLUMN_FAMILY_NAME).setColumn(subBlockIdBuffer), CONSISTENCY_LEVEL_READ)
+    val subBlockFuture = performGet(blockIdBuffer, new ColumnPath(BLOCK_COLUMN_FAMILY_NAME).setColumn(subBlockIdBuffer), consistencyLevelRead)
     val prom = promise[InputStream]()
     subBlockFuture.onSuccess {
       case p =>
@@ -269,7 +268,7 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
     val result = promise[GenericOpSuccess]()
 
     val deleteInodeFuture = AsyncUtil.executeAsync[remove_call](
-      client.remove(pathKey, iNodeColumnPath, timestamp, CONSISTENCY_LEVEL_WRITE, _))
+      client.remove(pathKey, iNodeColumnPath, timestamp, consistencyLevelWrite, _))
 
     deleteInodeFuture.onSuccess {
       case p => result success GenericOpSuccess()
@@ -294,7 +293,7 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
     val result = promise[GenericOpSuccess]()
 
     val deleteFuture = AsyncUtil.executeAsync[batch_mutate_call](
-      client.batch_mutate(mutationMap, CONSISTENCY_LEVEL_WRITE, _))
+      client.batch_mutate(mutationMap, consistencyLevelWrite, _))
     deleteFuture.onSuccess {
       case p => {
         result success GenericOpSuccess()
@@ -336,7 +335,7 @@ class ThriftStore(client: AsyncClient) extends FileSystemStore {
 
     val indexClause = new IndexClause(indexExpr, ByteBufferUtil.EMPTY_BYTE_BUFFER, 100000)
     val rowFuture = AsyncUtil.executeAsync[get_indexed_slices_call](
-      client.get_indexed_slices(iNodeParent, indexClause, pathPredicate, CONSISTENCY_LEVEL_READ, _))
+      client.get_indexed_slices(iNodeParent, indexClause, pathPredicate, consistencyLevelRead, _))
 
     val result = promise[Set[Path]]()
     rowFuture.onSuccess {

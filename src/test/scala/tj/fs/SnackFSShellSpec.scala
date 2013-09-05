@@ -31,7 +31,7 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
   val filesystem = "snackfs://localhost:9000/"
 
   val testingDir = filesystem + "testFSShell/"
-  val projectHome = "/snackfs/src/" //to be set
+  val projectHome = "/home/shiti/work/tj/snackfs/src/" //to be set
 
   val listCommand = hadoopFSCommands ++ Seq("-lsr", filesystem)
 

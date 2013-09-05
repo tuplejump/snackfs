@@ -21,6 +21,7 @@ import org.apache.cassandra.utils.ByteBufferUtil
 import org.apache.commons.io.IOUtils
 import org.scalatest.matchers.MustMatchers
 import org.apache.cassandra.thrift.NotFoundException
+import org.apache.cassandra.locator.SimpleStrategy
 
 class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
@@ -45,7 +46,8 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
   val data = ByteBufferUtil.bytes("Test to store subBLock")
 
   it should "create a keyspace with name STORE" in {
-    val ks = store.createKeyspace(store.buildSchema("STORE", 1))
+    val replicationStrategy = classOf[SimpleStrategy].getCanonicalName
+    val ks = store.createKeyspace(store.buildSchema("STORE", 1,replicationStrategy))
     val status = Await.result(ks, 5 seconds)
     assert(status.isInstanceOf[Keyspace])
   }

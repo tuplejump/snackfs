@@ -15,6 +15,7 @@ import org.apache.cassandra.thrift.Cassandra.AsyncClient.{system_drop_keyspace_c
 import java.nio.file.{FileSystems, Files}
 import org.apache.commons.io.IOUtils
 import org.scalatest.matchers.MustMatchers
+import org.apache.cassandra.locator.SimpleStrategy
 
 class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   val clientManager = new TAsyncClientManager()
@@ -25,7 +26,8 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
 
   val store = new ThriftStore(client)
 
-  Await.result(store.createKeyspace(store.buildSchema("STREAM", 1)), 5 seconds)
+  val replicationStrategy = classOf[SimpleStrategy].getCanonicalName
+  Await.result(store.createKeyspace(store.buildSchema("STREAM", 1,replicationStrategy)), 5 seconds)
   Await.result(AsyncUtil.executeAsync[set_keyspace_call](client.set_keyspace("STREAM", _)), 5 seconds)
 
   it should "fetch data which is equal to actual data" in {
