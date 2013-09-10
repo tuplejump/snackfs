@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+
+BASE=`dirname "${BASH_SOURCE-$0}"`/..
+
+CONF=conf
+CONF_DIR=${CONF_DIR:-$BASE/$CONF}
+
+JAVA_HOME="/usr/lib/jvm/java-1.7.0-openjdk-1.7.0.25.x86_64"
+
+# if no args specified, show usage
+if [ $# = 0 ]; then
+  echo "Usage: snackfs COMMAND"
+  echo "where COMMAND is:"
+  echo "  fs                   run a generic filesystem user client"
+  exit 1
+fi
+
+# get arguments
+COMMAND=$1
+shift
+
+JAVA=$JAVA_HOME/bin/java
+JAVA_HEAP_MAX=-Xmx1000m
+
+CLASSPATH="${CONF_DIR}"
+CLASSPATH=${CLASSPATH}:$JAVA_HOME/lib/tools.jar
+
+# add libs to CLASSPATH
+for f in $BASE/lib/*.jar; do
+  CLASSPATH=${CLASSPATH}:$f;
+done
+
+if [ "$COMMAND" = "fs" ] ; then
+  CLASS=org.apache.hadoop.fs.FsShell
+else exit 1
+fi
+
+OPTS=""
+exec "$JAVA" -Dproc_$COMMAND $JAVA_HEAP_MAX $OPTS -classpath "$CLASSPATH" $CLASS "$@"
