@@ -28,7 +28,6 @@ BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta) extends InputStre
       offset -= subBlockLengthTotals(subBlockIndex - 1)
     }
     val subBlock = blockMeta.subBlocks(subBlockIndex)
-    currentPosition = targetPosition
     targetSubBlockSize = subBlock.length
     targetSubBlockOffset = subBlock.offset
 

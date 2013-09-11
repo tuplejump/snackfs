@@ -29,6 +29,24 @@ case class SnackFS() extends FileSystem {
   private val AT_MOST: FiniteDuration = 10 seconds
   private var store: FileSystemStore = null
 
+  private def createStore(client: AsyncClient, writeLevel: String, readLevel: String): FileSystemStore = {
+    var fileSystemStore: FileSystemStore = null
+    if (writeLevel == null && readLevel == null) {
+      fileSystemStore = new ThriftStore(client)
+    } else if (writeLevel != null && readLevel == null) {
+      val writeConsistency = ConsistencyLevel.valueOf(readLevel)
+      fileSystemStore = new ThriftStore(client, writeConsistency)
+    } else if (writeLevel == null && readLevel != null) {
+      val readConsistency = ConsistencyLevel.valueOf(readLevel)
+      fileSystemStore = new ThriftStore(client, consistencyLevelRead = readConsistency)
+    } else {
+      val writeConsistency = ConsistencyLevel.valueOf(writeLevel)
+      val readConsistency = ConsistencyLevel.valueOf(readLevel)
+      fileSystemStore = new ThriftStore(client, writeConsistency, readConsistency)
+    }
+    fileSystemStore
+  }
+
   override def initialize(uri: URI, configuration: Configuration) = {
     super.initialize(uri, configuration)
     setConf(configuration)
@@ -53,19 +71,7 @@ case class SnackFS() extends FileSystem {
     val consistencyLevelWrite = configuration.get("fs.consistencyLevel.write")
     val consistencyLevelRead = configuration.get("fs.consistencyLevel.read")
 
-    if (consistencyLevelWrite == null && consistencyLevelRead == null) {
-      store = new ThriftStore(client)
-    } else if (consistencyLevelWrite != null && consistencyLevelRead == null) {
-      val writeConsistency = ConsistencyLevel.valueOf(consistencyLevelWrite)
-      store = new ThriftStore(client, writeConsistency)
-    } else if (consistencyLevelWrite == null && consistencyLevelRead != null) {
-      val readConsistency = ConsistencyLevel.valueOf(consistencyLevelRead)
-      store = new ThriftStore(client, consistencyLevelRead = readConsistency)
-    } else {
-      val writeConsistency = ConsistencyLevel.valueOf(consistencyLevelWrite)
-      val readConsistency = ConsistencyLevel.valueOf(consistencyLevelRead)
-      store = new ThriftStore(client, writeConsistency, readConsistency)
-    }
+    store = createStore(client, consistencyLevelWrite, consistencyLevelRead)
 
     var keyspaceName = configuration.get("fs.keyspace")
     if (keyspaceName == null) {
@@ -77,7 +83,7 @@ case class SnackFS() extends FileSystem {
       replicationStrategy = classOf[SimpleStrategy].getCanonicalName
     }
 
-    Await.ready(store.createKeyspace(store.buildSchema(keyspaceName, replicationFactor,replicationStrategy)), AT_MOST)
+    Await.ready(store.createKeyspace(store.buildSchema(keyspaceName, replicationFactor, replicationStrategy)), AT_MOST)
     Await.ready(AsyncUtil.executeAsync[set_keyspace_call](client.set_keyspace(keyspaceName, _)), AT_MOST)
 
     val defaultSubBLockSize = 256 * 1024L
