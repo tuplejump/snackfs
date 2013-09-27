@@ -8,7 +8,7 @@ Execute the following command in the project directory
 This will result in a "snackfs.tar.gz" file in the "target" directory of "snackfs".
 
 To run the project,
-    1. start Cassandra
+    1. start Cassandra v1.2.9
     2. Extract "snackfs.tar.gz" at desired location and grant user permissions to read,
         write and execute the script ‘snackfs’ located in bin directory
     3.In bin/snackfs set JAVA_HOME
