@@ -1,5 +1,25 @@
-A sample for the Typesafe Stack (http://typesafe.com/stack).
+This project requires SBT to generate a distribution of the project.
+SBT can be set up from the instructions on
+http://www.scala-sbt.org/release/docs/Getting-Started/Setup.html#installing-sbt
 
-Scala sample project using Scala and SBT.
+Execute the following command in the project directory
+    [snackfs]$ sbt dist
 
-To run and test it use SBT invoke: 'sbt run'
+This will result in a "snackfs.tar.gz" file in the "target" directory of "snackfs".
+
+To run the project,
+    1. start Cassandra
+    2. Extract "snackfs.tar.gz" at desired location and grant user permissions to read,
+        write and execute the script ‘snackfs’ located in bin directory
+    3.In bin/snackfs set JAVA_HOME
+    4.It is possible to configure the file system by updating core-site.xml.
+        The following properties can be added.
+           fs.cassandra.host (default 127.0.0.1)
+           fs.cassandra.port (default 9160)
+           fs.consistencyLevel.write (default QUORUM)
+           fs.consistencyLevel.read (default QUORUM)
+           fs.keyspace (default snackfs)
+           fs.replicationFactor (default 3)
+           fs.replicationStrategy (default org.apache.cassandra.locator.SimpleStrategy)
+    5.Hadoop like fs commands can now be run from the extracted snackfs directory. For example,
+       bin/snackfs fs -mkdir snackfs:///random

@@ -203,47 +203,6 @@ case class SnackFS() extends FileSystem {
     }
   }
 
-  override def getFileBlockLocations(fileStatus: FileStatus, start: Long, length: Long) = {
-    var result: Array[BlockLocation] = null
-    if (fileStatus != null) {
-
-      if (!fileStatus.isInstanceOf[SnackFileStatus]) {
-        super.getFileBlockLocations(fileStatus, start, length)
-      }
-      else {
-        if (start < 0 || length < 0) {
-          throw new IllegalArgumentException("Invalid start or length parameter")
-        }
-        if (fileStatus.getLen < start) {
-          result = Array(new BlockLocation())
-        }
-        else {
-          val iNode = fileStatus.asInstanceOf[SnackFileStatus].iNode
-          val end = start + length
-
-          val usedBlocks = iNode.blocks.filter(block =>
-            ((start >= block.offset && start < (block.offset + block.length)) ||
-              (end >= block.offset && end < (block.offset + block.length))) ||
-
-              ((block.offset >= start && block.offset < end) ||
-                ((block.offset + block.length) >= start && (block.offset + block.length) < end)))
-
-          if (!usedBlocks.isEmpty) {
-            /* check name and host */
-            val name: Array[String] = Array("localhost:50010")
-            val host: Array[String] = Array("localhost")
-
-            result = usedBlocks.map(block => {
-              val offset = if (usedBlocks.indexOf(block) == 0) start else block.offset
-              new BlockLocation(name, host, offset, block.length)
-            }).toArray
-          }
-        }
-      }
-    }
-    result
-  }
-
   def delete(path: Path, recursive: Boolean): Boolean = {
     val absolutePath = makeAbsolute(path)
     val mayBeiNode = Try(Await.result(store.retrieveINode(absolutePath), AT_MOST))
