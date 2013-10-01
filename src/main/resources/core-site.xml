@@ -4,7 +4,7 @@
 <configuration>
      <property>
          <name>fs.snackfs.impl</name>
-         <value>org.apache.hadoop.fs.SnackFS</value>
+         <value>com.tuplejump.fs.SnackFS</value>
      </property>
      <property>
 	<name>fs.keyspace</name>

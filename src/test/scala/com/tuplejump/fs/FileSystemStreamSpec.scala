@@ -1,4 +1,22 @@
-package tj.fs
+/*
+ * Licensed to Tuplejump Software Pvt. Ltd. under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  Tuplejump Software Pvt. Ltd. licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+package com.tuplejump.fs
 
 import org.scalatest.{BeforeAndAfterAll, FlatSpec}
 import org.apache.thrift.async.TAsyncClientManager
@@ -10,12 +28,12 @@ import org.apache.hadoop.fs.Path
 import org.apache.cassandra.utils.ByteBufferUtil
 import scala.concurrent.Await
 import scala.concurrent.duration._
-import tj.util.AsyncUtil
 import org.apache.cassandra.thrift.Cassandra.AsyncClient.{system_drop_keyspace_call, set_keyspace_call}
 import java.nio.file.{FileSystems, Files}
 import org.apache.commons.io.IOUtils
 import org.scalatest.matchers.MustMatchers
 import org.apache.cassandra.locator.SimpleStrategy
+import com.tuplejump.util.AsyncUtil
 
 class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   val clientManager = new TAsyncClientManager()
@@ -80,7 +98,6 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
     })
     println("completed copy")
     new String(fetchedData) must be(new String(data))
-    //assert(fetchedData === data)
   }
 
   it should "fetch data loaded from medium(~600KB) file" in {

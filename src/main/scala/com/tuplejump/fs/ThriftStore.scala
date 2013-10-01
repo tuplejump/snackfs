@@ -1,6 +1,23 @@
-package tj.fs
+/*
+ * Licensed to Tuplejump Software Pvt. Ltd. under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  Tuplejump Software Pvt. Ltd. licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+package com.tuplejump.fs
 
-import tj.util.AsyncUtil
 
 import org.apache.cassandra.thrift.Cassandra.AsyncClient
 import org.apache.cassandra.thrift.Cassandra.AsyncClient._
@@ -13,13 +30,15 @@ import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import java.nio.ByteBuffer
 import scala.util.Try
-import tj.model._
 import org.apache.hadoop.fs.Path
 import java.math.BigInteger
 import java.util.UUID
-import tj.model.SubBlockMeta
-import tj.model.GenericOpSuccess
 import java.io.InputStream
+import com.tuplejump.util.AsyncUtil
+import com.tuplejump.model._
+import com.tuplejump.model.SubBlockMeta
+import com.tuplejump.model.BlockMeta
+import com.tuplejump.model.GenericOpSuccess
 
 class ThriftStore(client: AsyncClient,
                   consistencyLevelWrite: ConsistencyLevel = ConsistencyLevel.QUORUM,

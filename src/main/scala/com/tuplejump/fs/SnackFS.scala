@@ -1,4 +1,22 @@
-package org.apache.hadoop.fs
+/*
+ * Licensed to Tuplejump Software Pvt. Ltd. under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  Tuplejump Software Pvt. Ltd. licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+package com.tuplejump.fs
 
 import java.net.URI
 import org.apache.hadoop.fs.permission.FsPermission
@@ -7,18 +25,18 @@ import org.apache.hadoop.conf.Configuration
 import java.io.{FileNotFoundException, IOException}
 import scala.concurrent.Await
 import scala.concurrent.duration._
-import tj.model.{FileType, INode}
 
 import scala.util.{Failure, Success, Try}
 import org.apache.thrift.async.TAsyncClientManager
 import org.apache.thrift.protocol.TBinaryProtocol
 import org.apache.thrift.transport.TNonblockingSocket
 import org.apache.cassandra.thrift.Cassandra.AsyncClient
-import tj.util.AsyncUtil
 import org.apache.cassandra.thrift.Cassandra.AsyncClient.set_keyspace_call
-import tj.fs.{FileSystemOutputStream, FileSystemInputStream, ThriftStore, FileSystemStore}
 import org.apache.cassandra.thrift.ConsistencyLevel
 import org.apache.cassandra.locator.SimpleStrategy
+import com.tuplejump.util.AsyncUtil
+import com.tuplejump.model.{FileType, INode}
+import org.apache.hadoop.fs._
 
 case class SnackFS() extends FileSystem {
 

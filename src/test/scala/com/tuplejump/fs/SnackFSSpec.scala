@@ -1,35 +1,48 @@
-package tj.fs
+/*
+ * Licensed to Tuplejump Software Pvt. Ltd. under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  Tuplejump Software Pvt. Ltd. licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+package com.tuplejump.fs
 
 import org.scalatest.{BeforeAndAfterAll, FlatSpec}
 import org.scalatest.matchers.MustMatchers
 import java.net.URI
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{SnackFS, Path}
+import org.apache.hadoop.fs.{Path}
 import java.io.{FileNotFoundException, IOException}
 
 class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
+  val fs = SnackFS()
+  val uri = URI.create("snackfs://localhost:9000")
+  fs.initialize(uri, new Configuration())
+
   it should "create a new filesystem with given store" in {
-    val fs = SnackFS()
-    val uri = URI.create("snackfs://localhost:9000")
-    fs.initialize(uri, new Configuration())
     fs.getUri must be(uri)
     val user = System.getProperty("user.name", "none")
     fs.getWorkingDirectory must be(new Path("snackfs://localhost:9000/user/" + user))
   }
 
   it should "add a directory" in {
-    val fs = SnackFS()
-    val uri = URI.create("snackfs://localhost:9000")
-    fs.initialize(uri, new Configuration())
     val result = fs.mkdirs(new Path("/mytestdir"))
     assert(result === true)
   }
 
   it should "create an entry for a file" in {
-    val fs = SnackFS()
-    val uri = URI.create("snackfs://localhost:9000")
-    fs.initialize(uri, new Configuration())
     val fsData = fs.create(new Path("/home/Downloads/JSONParser.js"))
     fsData.write("SOME CONTENT".getBytes)
     val position = fsData.getPos
@@ -37,9 +50,6 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   }
 
   it should "not when trying to add an existing file as a directory" in {
-    val fs = SnackFS()
-    val uri = URI.create("snackfs://localhost:9000")
-    fs.initialize(uri, new Configuration())
     val fsData = fs.create(new Path("/home/Downloads/someTest"))
     fsData.write("SOME CONTENT".getBytes)
     fsData.close()
@@ -48,9 +58,6 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   }
 
   it should "allow to read from a file" in {
-    val fs = SnackFS()
-    val uri = URI.create("snackfs://localhost:9000")
-    fs.initialize(uri, new Configuration())
     val fsData = fs.create(new Path("/home/Downloads/random"))
     fsData.write("SOME CONTENT".getBytes)
     fsData.close()
@@ -65,9 +72,6 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   }
 
   it should "throw an exception when trying to open a directory" in {
-    val fs = SnackFS()
-    val uri = URI.create("snackfs://localhost:9000")
-    fs.initialize(uri, new Configuration())
     val path = new Path("/test")
     fs.mkdirs(path)
     val exception = intercept[IOException] {
@@ -77,9 +81,6 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   }
 
   it should "throw an exception when trying to open a file which doesn't exist" in {
-    val fs = SnackFS()
-    val uri = URI.create("snackfs://localhost:9000")
-    fs.initialize(uri, new Configuration())
     val path = new Path("/newFile")
     val exception = intercept[IOException] {
       fs.open(path)
@@ -88,9 +89,6 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   }
 
   it should "get file status" in {
-    val fs = SnackFS()
-    val uri = URI.create("snackfs://localhost:9000")
-    fs.initialize(uri, new Configuration())
     val path = new Path("/home/Downloads/testStatus")
     val fsData = fs.create(path)
     fsData.write("SOME CONTENT".getBytes)
@@ -103,9 +101,6 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   }
 
   it should "get file block locations" in {
-    val fs = SnackFS()
-    val uri = URI.create("snackfs://localhost:9000")
-    fs.initialize(uri, new Configuration())
     val path = new Path("/home/Downloads/testLocations")
     val fsData = fs.create(path)
     fsData.write("This is a test to check the block location details".getBytes)
@@ -122,9 +117,6 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   }
 
   it should "list all files/directories within the given directory" in {
-    val fs = SnackFS()
-    val uri = URI.create("snackfs://localhost:9000")
-    fs.initialize(uri, new Configuration())
     val dirPath1 = new Path("/tmp/user")
     fs.mkdirs(dirPath1)
     val dirPath2 = new Path("/tmp/local")
@@ -148,9 +140,6 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   }
 
   it should "delete all files/directories within the given directory" in {
-    val fs = SnackFS()
-    val uri = URI.create("snackfs://localhost:9000")
-    fs.initialize(uri, new Configuration())
     val dirPath1 = new Path("/tmp1/user1")
     fs.mkdirs(dirPath1)
     val dirPath2 = new Path("/tmp1/local1")
@@ -191,9 +180,6 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   }
 
   it should "rename a file" in {
-    val fs = SnackFS()
-    val uri = URI.create("snackfs://localhost:9000")
-    fs.initialize(uri, new Configuration())
 
     val filePath1 = new Path("/tmp2/testRename")
     val fileData1 = fs.create(filePath1)
@@ -216,9 +202,6 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   }
 
   it should "rename a directory" in {
-    val fs = SnackFS()
-    val uri = URI.create("snackfs://localhost:9000")
-    fs.initialize(uri, new Configuration())
 
     val dirPath1 = new Path("/abc/user")
     fs.mkdirs(dirPath1)
