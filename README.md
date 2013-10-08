@@ -1,9 +1,10 @@
-#Prerequisites
+###Prerequisites
 
 1.SBT : It can be set up from the instructions [here](http://www.scala-sbt.org/release/docs/Getting-Started/Setup.html#installing-sbt).
 
 2.Cassandra(v1.2.9) :Instructions can be found [here](http://wiki.apache.org/cassandra/GettingStarted).
 
+###Setup
 #####To run the project,
 
     1.Execute the following command in the project directory
