@@ -3,6 +3,7 @@
 1.SBT : It can be set up from the instructions [here](http://www.scala-sbt.org/release/docs/Getting-Started/Setup.html#installing-sbt).
 
 2.Cassandra(v1.2.9) :Instructions can be found [here](http://wiki.apache.org/cassandra/GettingStarted).
+An easier alternative would be using [this project](https://github.com/pcmanus/ccm)
 
 ###Setup
 #####To run the project,
