@@ -14,7 +14,7 @@ An easier alternative would be using [this project](https://github.com/pcmanus/c
 
        This will result in a "snackfs.tar.gz" file in the "target" directory of "snackfs".
        Extract "snackfs.tar.gz" at desired location and grant user permissions
-        to read, write and execute the script ‘snackfs’ located in bin directory
+        to read, write and execute the script "snackfs" located in bin directory
 
     2.start Cassandra v1.2.9 (default setup for snackfs assumes its a cluster with 3 nodes)
     3.In bin/snackfs set JAVA_HOME
@@ -42,13 +42,12 @@ An easier alternative would be using [this project](https://github.com/pcmanus/c
 
        This will result in a "snackfs_2.9.3-0.1-SNAPSHOT.jar" file in the "target" directory of "snackfs".
        Copy the jar to 'hadoop-1.0.4/lib'.
-    3.Copy all the files in snackfs/lib_managed and scala-library-2.9.3.jar
-    (located at user home '/.ivy2/cache/org.scala-lang/scala-library/jars') to 'hadoop-1.0.4/lib'.
+    3.Copy all the jars in snackfs/lib_managed and scala-library-2.9.3.jar
+    (located at '~/.ivy2/cache/org.scala-lang/scala-library/jars') to 'hadoop-1.0.4/lib'.
     4.Copy snackfs/src/main/resources/core-site.xml to 'hadoop-1.0.4/conf'
     5.start Cassandra v1.2.9 (default setup for snackfs assumes its a cluster with 3 nodes)
     6.Hadoop fs commands can now be run using snackfs. For example,
 
         [hadoop-1.0.4]$ bin/hadoop fs -mkdir snackfs:///random
-
 
 
