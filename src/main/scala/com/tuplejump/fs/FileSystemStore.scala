@@ -18,7 +18,6 @@
  */
 package com.tuplejump.fs
 
-import org.apache.cassandra.thrift.KsDef
 import scala.concurrent.Future
 import org.apache.hadoop.fs.Path
 import java.util.UUID
@@ -30,9 +29,10 @@ import com.tuplejump.model.BlockMeta
 import com.tuplejump.model.GenericOpSuccess
 
 trait FileSystemStore {
-  def buildSchema(keyspace: String, replicationFactor: Int, replicationStrategy: String): KsDef
 
-  def createKeyspace(ksDef: KsDef): Future[Keyspace]
+  def createKeyspace: Future[Keyspace]
+
+  def init: Future[Unit]
 
   def storeINode(path: Path, iNode: INode): Future[GenericOpSuccess]
 
@@ -50,5 +50,5 @@ trait FileSystemStore {
 
   def fetchSubPaths(path: Path, isDeepFetch: Boolean): Future[Set[Path]]
 
-  def getBlockLocations(keyspace:String, path: String): Future[Map[BlockMeta, String]]
+  def getBlockLocations(path: String): Future[Map[BlockMeta, String]]
 }

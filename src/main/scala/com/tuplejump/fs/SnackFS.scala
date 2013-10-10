@@ -27,15 +27,7 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 
 import scala.util.{Failure, Success, Try}
-import org.apache.thrift.async.TAsyncClientManager
-import org.apache.thrift.protocol.TBinaryProtocol
-import org.apache.thrift.transport.TNonblockingSocket
-import org.apache.cassandra.thrift.Cassandra.AsyncClient
-import org.apache.cassandra.thrift.Cassandra.AsyncClient.set_keyspace_call
-import org.apache.cassandra.thrift.ConsistencyLevel
-import org.apache.cassandra.locator.SimpleStrategy
-import com.tuplejump.util.AsyncUtil
-import com.tuplejump.model.{FileType, INode}
+import com.tuplejump.model.{SnackFSConfiguration, FileType, INode}
 import org.apache.hadoop.fs._
 
 case class SnackFS() extends FileSystem {
@@ -44,26 +36,8 @@ case class SnackFS() extends FileSystem {
   private var currentDirectory: Path = null
   private var subBlockSize: Long = 0L
 
-  private val AT_MOST: FiniteDuration = 10 seconds
+  private var atMost: FiniteDuration = null
   private var store: FileSystemStore = null
-
-  private def createStore(client: AsyncClient, writeLevel: String, readLevel: String): FileSystemStore = {
-    var fileSystemStore: FileSystemStore = null
-    if (writeLevel == null && readLevel == null) {
-      fileSystemStore = new ThriftStore(client)
-    } else if (writeLevel != null && readLevel == null) {
-      val writeConsistency = ConsistencyLevel.valueOf(readLevel)
-      fileSystemStore = new ThriftStore(client, writeConsistency)
-    } else if (writeLevel == null && readLevel != null) {
-      val readConsistency = ConsistencyLevel.valueOf(readLevel)
-      fileSystemStore = new ThriftStore(client, consistencyLevelRead = readConsistency)
-    } else {
-      val writeConsistency = ConsistencyLevel.valueOf(writeLevel)
-      val readConsistency = ConsistencyLevel.valueOf(readLevel)
-      fileSystemStore = new ThriftStore(client, writeConsistency, readConsistency)
-    }
-    fileSystemStore
-  }
 
   override def initialize(uri: URI, configuration: Configuration) = {
     super.initialize(uri, configuration)
@@ -74,38 +48,14 @@ case class SnackFS() extends FileSystem {
     val directory = new Path("/user", System.getProperty("user.name"))
     currentDirectory = makeQualified(directory)
 
-    var host = configuration.get("fs.cassandra.host")
-    if (host == null) {
-      host = "127.0.0.1"
-    }
-    val port = configuration.getInt("fs.cassandra.port", 9160)
+    val customConfiguration = SnackFSConfiguration.get(configuration)
 
-    val clientManager = new TAsyncClientManager()
-    val protocolFactory = new TBinaryProtocol.Factory()
-    val transport = new TNonblockingSocket(host, port)
+    store = new ThriftStore(customConfiguration)
+    atMost = customConfiguration.atMost
+    Await.ready(store.createKeyspace, atMost)
+    Await.ready(store.init, atMost)
 
-    def client = new AsyncClient(protocolFactory, clientManager, transport)
-
-    val consistencyLevelWrite = configuration.get("fs.consistencyLevel.write")
-    val consistencyLevelRead = configuration.get("fs.consistencyLevel.read")
-
-    store = createStore(client, consistencyLevelWrite, consistencyLevelRead)
-
-    var keyspaceName = configuration.get("fs.keyspace")
-    if (keyspaceName == null) {
-      keyspaceName = "snackfs"
-    }
-    val replicationFactor = configuration.getInt("fs.replicationFactor", 3)
-    var replicationStrategy = configuration.get("fs.replicationStrategy")
-    if (replicationStrategy == null) {
-      replicationStrategy = classOf[SimpleStrategy].getCanonicalName
-    }
-
-    Await.ready(store.createKeyspace(store.buildSchema(keyspaceName, replicationFactor, replicationStrategy)), AT_MOST)
-    Await.ready(AsyncUtil.executeAsync[set_keyspace_call](client.set_keyspace(keyspaceName, _)), AT_MOST)
-
-    val defaultSubBLockSize = 256 * 1024L
-    subBlockSize = configuration.getLong("fs.subblock.size", defaultSubBLockSize)
+    subBlockSize = customConfiguration.subBlockSize
   }
 
   private def makeAbsolute(path: Path): Path = {
@@ -121,7 +71,7 @@ case class SnackFS() extends FileSystem {
   def getWorkingDirectory: Path = currentDirectory
 
   def open(path: Path, bufferSize: Int): FSDataInputStream = {
-    val mayBeiNode = Try(Await.result(store.retrieveINode(path), AT_MOST))
+    val mayBeiNode = Try(Await.result(store.retrieveINode(path), atMost))
 
     mayBeiNode match {
       case Success(inode) => {
@@ -138,7 +88,7 @@ case class SnackFS() extends FileSystem {
   }
 
   private def mkdir(path: Path, permission: FsPermission): Boolean = {
-    val mayBeiNode = Try(Await.result(store.retrieveINode(path), AT_MOST))
+    val mayBeiNode = Try(Await.result(store.retrieveINode(path), atMost))
 
     var result = true
     mayBeiNode match {
@@ -150,7 +100,7 @@ case class SnackFS() extends FileSystem {
         val user = System.getProperty("user.name")
         val timestamp = System.currentTimeMillis()
         val iNode = INode(user, user, permission, FileType.DIRECTORY, null, timestamp)
-        Await.ready(store.storeINode(path, iNode), AT_MOST)
+        Await.ready(store.storeINode(path, iNode), atMost)
     }
     result
   }
@@ -171,7 +121,7 @@ case class SnackFS() extends FileSystem {
              bufferSize: Int, replication: Short, blockSize: Long,
              progress: Progressable): FSDataOutputStream = {
 
-    val mayBeiNode = Try(Await.result(store.retrieveINode(filePath), AT_MOST))
+    val mayBeiNode = Try(Await.result(store.retrieveINode(filePath), atMost))
     mayBeiNode match {
       case Success(p) => {
         if (p.isFile && !overwrite) {
@@ -184,7 +134,7 @@ case class SnackFS() extends FileSystem {
           mkdirs(parentPath)
         }
     }
-    val fileStream = new FileSystemOutputStream(store, filePath, blockSize, subBlockSize, bufferSize)
+    val fileStream = new FileSystemOutputStream(store, filePath, blockSize, subBlockSize, bufferSize,atMost)
     val fileDataStream = new FSDataOutputStream(fileStream, statistics)
     fileDataStream
   }
@@ -214,30 +164,30 @@ case class SnackFS() extends FileSystem {
   }
 
   def getFileStatus(path: Path): FileStatus = {
-    val maybeInode = Try(Await.result(store.retrieveINode(path), AT_MOST))
+    val maybeInode = Try(Await.result(store.retrieveINode(path), atMost))
     maybeInode match {
       case Success(iNode: INode) => SnackFileStatus(iNode, path)
       case Failure(e) => throw new FileNotFoundException("No such file exists")
     }
   }
 
-  def delete(path: Path, recursive: Boolean): Boolean = {
+  def delete(path: Path, isRecursive: Boolean): Boolean = {
     val absolutePath = makeAbsolute(path)
-    val mayBeiNode = Try(Await.result(store.retrieveINode(absolutePath), AT_MOST))
+    val mayBeiNode = Try(Await.result(store.retrieveINode(absolutePath), atMost))
     var result = true
     mayBeiNode match {
       case Success(iNode: INode) =>
         if (iNode.isFile) {
-          Await.ready(store.deleteINode(absolutePath), AT_MOST)
-          Await.ready(store.deleteBlocks(iNode), AT_MOST)
+          Await.ready(store.deleteINode(absolutePath), atMost)
+          Await.ready(store.deleteBlocks(iNode), atMost)
         }
         else {
           val contents = listStatus(path)
-          if (contents.length == 0) Await.ready(store.deleteINode(absolutePath), AT_MOST)
-          else if (!recursive) throw new IOException("Directory is not empty")
+          if (contents.length == 0) Await.ready(store.deleteINode(absolutePath), atMost)
+          else if (!isRecursive) throw new IOException("Directory is not empty")
           else {
-            result = contents.map(p => delete(p.getPath, recursive)).reduce(_ && _)
-            Await.ready(store.deleteINode(absolutePath), AT_MOST)
+            result = contents.map(p => delete(p.getPath, isRecursive)).reduce(_ && _)
+            Await.ready(store.deleteINode(absolutePath), atMost)
           }
         }
       case Failure(e) => result = false //No such file
@@ -248,15 +198,15 @@ case class SnackFS() extends FileSystem {
   def rename(src: Path, dst: Path): Boolean = {
     if (src != dst) {
       val srcPath = makeAbsolute(src)
-      val mayBeSrcINode = Try(Await.result(store.retrieveINode(srcPath), AT_MOST))
+      val mayBeSrcINode = Try(Await.result(store.retrieveINode(srcPath), atMost))
       mayBeSrcINode match {
         case Failure(e1) => throw new IOException("No such file or directory.%s".format(srcPath))
         case Success(iNode: INode) =>
           val dstPath = makeAbsolute(dst)
-          val mayBeDstINode = Try(Await.result(store.retrieveINode(dstPath), AT_MOST))
+          val mayBeDstINode = Try(Await.result(store.retrieveINode(dstPath), atMost))
           mayBeDstINode match {
             case Failure(e) => {
-              val maybeDstParent = Try(Await.result(store.retrieveINode(dst.getParent), AT_MOST))
+              val maybeDstParent = Try(Await.result(store.retrieveINode(dst.getParent), atMost))
               maybeDstParent match {
                 case Failure(e2) =>
                   throw new IOException("Destination %s directory does not exist.".format(dst.getParent))
@@ -283,7 +233,7 @@ case class SnackFS() extends FileSystem {
                 val fileName = src.getName
                 val updatedPath = new Path(dstPathString + fileName)
 
-                val mayBeExistingINode = Try(Await.result(store.retrieveINode(updatedPath), AT_MOST))
+                val mayBeExistingINode = Try(Await.result(store.retrieveINode(updatedPath), atMost))
 
                 mayBeExistingINode match {
                   case Failure(e) =>
@@ -302,7 +252,7 @@ case class SnackFS() extends FileSystem {
                       if (iNode.isFile)
                         throw new IOException("cannot overwrite directory with a non-directory")
                       else {
-                        val contents = Await.result(store.fetchSubPaths(updatedPath, false), AT_MOST)
+                        val contents = Await.result(store.fetchSubPaths(updatedPath, isDeepFetch = false), atMost)
                         if (contents.size > 0)
                           throw new IOException("cannot move %s to %s - directory not empty".format(src, dst))
                         else
@@ -318,19 +268,19 @@ case class SnackFS() extends FileSystem {
   }
 
   def renameINode(originalPath: Path, updatedPath: Path, iNode: INode) = {
-    Await.ready(store.deleteINode(originalPath), AT_MOST)
-    Await.ready(store.storeINode(updatedPath, iNode), AT_MOST)
+    Await.ready(store.deleteINode(originalPath), atMost)
+    Await.ready(store.storeINode(updatedPath, iNode), atMost)
   }
 
   def renameDir(src: Path, dst: Path) = {
     val srcPath = makeAbsolute(src)
     mkdirs(dst)
-    val contents = Await.result(store.fetchSubPaths(srcPath, true), AT_MOST)
+    val contents = Await.result(store.fetchSubPaths(srcPath, isDeepFetch = true), atMost)
     if (contents.size > 0) {
       val srcPathString = src.toUri.getPath
       val dstPathString = dst.toUri.getPath
       contents.map(path => {
-        val actualINode = Await.result(store.retrieveINode(makeQualified(path)), AT_MOST)
+        val actualINode = Await.result(store.retrieveINode(makeQualified(path)), atMost)
         val oldPathString = path.toUri.getPath
         val changedPathString = oldPathString.replaceFirst(srcPathString, dstPathString)
         val changedPath = new Path(changedPathString)
@@ -343,14 +293,14 @@ case class SnackFS() extends FileSystem {
   def listStatus(path: Path): Array[FileStatus] = {
     var result: Array[FileStatus] = Array()
     val absolutePath = makeAbsolute(path)
-    val mayBeiNode = Try(Await.result(store.retrieveINode(absolutePath), AT_MOST))
+    val mayBeiNode = Try(Await.result(store.retrieveINode(absolutePath), atMost))
     mayBeiNode match {
       case Success(iNode: INode) =>
         if (iNode.isFile) {
           val fileStatus = SnackFileStatus(iNode, absolutePath)
           result = Array(fileStatus)
         } else {
-          val subPaths = Await.result(store.fetchSubPaths(absolutePath, false), AT_MOST)
+          val subPaths = Await.result(store.fetchSubPaths(absolutePath, isDeepFetch = false), atMost)
           result = subPaths.map(p => getFileStatus(makeQualified(p))).toArray
         }
       case Failure(e) => throw new FileNotFoundException("No such file exists")
@@ -358,7 +308,7 @@ case class SnackFS() extends FileSystem {
     result
   }
 
-  def delete(p1: Path): Boolean = delete(p1, false)
+  def delete(p1: Path): Boolean = delete(p1, isRecursive = false)
 
   /* override def getFileBlockLocations(file: FileStatus, start: Long, len: Long): Array[BlockLocation] = {
     val blocks = store.getBlockLocations(keyspace)

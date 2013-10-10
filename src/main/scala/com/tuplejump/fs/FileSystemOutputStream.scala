@@ -30,9 +30,8 @@ import com.tuplejump.model.{SubBlockMeta, FileType, INode, BlockMeta}
 
 case class FileSystemOutputStream(store: FileSystemStore, path: Path,
                                   blockSize: Long, subBlockSize: Long,
-                                  bufferSize: Long) extends OutputStream {
+                                  bufferSize: Long, atMost: FiniteDuration) extends OutputStream {
 
-  private val AT_MOST: FiniteDuration = 10 seconds
   private var isClosed: Boolean = false
 
   private var blockId: UUID = UUIDGen.getTimeUUID
@@ -78,7 +77,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
   private def endSubBlock() = {
     if (position != 0) {
       val subBlockMeta = SubBlockMeta(UUIDGen.getTimeUUID, subBlockOffset, position)
-      Await.ready(store.storeSubBlock(blockId, subBlockMeta, ByteBuffer.wrap(outBuffer)), AT_MOST)
+      Await.ready(store.storeSubBlock(blockId, subBlockMeta, ByteBuffer.wrap(outBuffer)), atMost)
       subBlockOffset += position
       bytesWrittenToBlock += position
       subBlocksMeta = subBlocksMeta :+ subBlockMeta
@@ -95,7 +94,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
     val permissions = FsPermission.getDefault
     val timestamp = System.currentTimeMillis()
     val iNode = INode(user, user, permissions, FileType.FILE, blocksMeta, timestamp)
-    Await.ready(store.storeINode(path, iNode), AT_MOST)
+    Await.ready(store.storeINode(path, iNode), atMost)
     blockOffset += subBlockLengths.asInstanceOf[Int]
     subBlocksMeta = List()
     subBlockOffset = 0

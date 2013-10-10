@@ -18,40 +18,29 @@
  */
 package com.tuplejump.fs
 
-import org.apache.thrift.async.TAsyncClientManager
-import org.apache.thrift.protocol.TBinaryProtocol
-import org.apache.thrift.transport.TNonblockingSocket
-import scala.concurrent.duration._
 import scala.concurrent.Await
 
 import org.scalatest.{BeforeAndAfterAll, FlatSpec}
-import org.apache.cassandra.thrift.Cassandra.AsyncClient
-import org.apache.cassandra.thrift.Cassandra.AsyncClient.{set_keyspace_call, system_drop_keyspace_call}
 import org.apache.hadoop.fs.permission.FsPermission
 import java.util.UUID
 import java.net.URI
 import org.apache.hadoop.fs.Path
-import scala.concurrent.ExecutionContext.Implicits.global
 import org.apache.cassandra.utils.ByteBufferUtil
 import org.apache.commons.io.IOUtils
 import org.scalatest.matchers.MustMatchers
 import org.apache.cassandra.thrift.NotFoundException
-import org.apache.cassandra.locator.SimpleStrategy
-import com.tuplejump.util.AsyncUtil
 import com.tuplejump.model._
 import com.tuplejump.model.GenericOpSuccess
 import com.tuplejump.model.SubBlockMeta
 import com.tuplejump.model.BlockMeta
+import org.apache.hadoop.conf.Configuration
 
 class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
-  val clientManager = new TAsyncClientManager()
-  val protocolFactory = new TBinaryProtocol.Factory()
-  val transport = new TNonblockingSocket("127.0.0.1", 9160)
-
-  def client = new AsyncClient(protocolFactory, clientManager, transport)
-
-  val store = new ThriftStore(client)
+  val configuration = new Configuration()
+  configuration.set("fs.keyspace", "STORE")
+  val snackFSConfiguration = SnackFSConfiguration.get(configuration)
+  val store = new ThriftStore(snackFSConfiguration)
 
   val timestamp = System.currentTimeMillis()
   val subBlocks = List(SubBlockMeta(UUID.randomUUID, 0, 128), SubBlockMeta(UUID.randomUUID, 128, 128))
@@ -66,35 +55,33 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
   val data = ByteBufferUtil.bytes("Test to store subBLock")
 
   it should "create a keyspace with name STORE" in {
-    val replicationStrategy = classOf[SimpleStrategy].getCanonicalName
-    val ks = store.createKeyspace(store.buildSchema("STORE", 1,replicationStrategy))
-    val status = Await.result(ks, 5 seconds)
+    val ks = store.createKeyspace
+    val status = Await.result(ks, snackFSConfiguration.atMost)
     assert(status.isInstanceOf[Keyspace])
   }
 
   it should "set keyspace to STORE" in {
-    val setKeyspaceFuture = AsyncUtil.executeAsync[set_keyspace_call](client.set_keyspace("STORE", _))
-    val result = Await.result(setKeyspaceFuture, 5 seconds)
-    assert(result != "")
+    val result = Await.result(store.init, snackFSConfiguration.atMost)
+    assert(result.isInstanceOf[Unit])
   }
 
   it should "create a INode" in {
     val response = store.storeINode(path, iNode)
-    val responseValue: GenericOpSuccess = Await.result(response, 10 seconds)
+    val responseValue: GenericOpSuccess = Await.result(response, snackFSConfiguration.atMost)
     assert(responseValue === GenericOpSuccess())
   }
 
 
   it should "fetch created INode" in {
     val response = store.retrieveINode(path)
-    val result: INode = Await.result(response, 10 seconds)
+    val result: INode = Await.result(response, snackFSConfiguration.atMost)
     assert(result === iNode)
   }
 
   it should "fetch created subBlock" in {
-    Await.ready(store.storeSubBlock(block1.id, subBlockMeta1, data), 10 seconds)
+    Await.ready(store.storeSubBlock(block1.id, subBlockMeta1, data), snackFSConfiguration.atMost)
     val storeResponse = store.retrieveSubBlock(block1.id, subBlockMeta1.id, 0)
-    val response = Await.result(storeResponse, 10 seconds)
+    val response = Await.result(storeResponse, snackFSConfiguration.atMost)
     val responseString = new String(IOUtils.toByteArray(response))
     responseString must be(new String(data.array()))
   }
@@ -106,22 +93,22 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
     val subBlock = SubBlockMeta(UUID.randomUUID, 0, 128)
     val subBlockSecond = SubBlockMeta(UUID.randomUUID, 0, 128)
 
-    Await.result(store.storeSubBlock(blockId, subBlock, ByteBufferUtil.bytes("Random test data")), 10 seconds)
-    Await.result(store.storeSubBlock(blockIdSecond, subBlockSecond, ByteBufferUtil.bytes("Random test data")), 10 seconds)
+    Await.result(store.storeSubBlock(blockId, subBlock, ByteBufferUtil.bytes("Random test data")), snackFSConfiguration.atMost)
+    Await.result(store.storeSubBlock(blockIdSecond, subBlockSecond, ByteBufferUtil.bytes("Random test data")), snackFSConfiguration.atMost)
 
     val blockMeta = BlockMeta(blockId, 0, 0, List(subBlock))
     val blockMetaSecond = BlockMeta(blockId, 0, 0, List(subBlock))
 
-    val subBlockData = Await.result(store.retrieveSubBlock(blockMeta.id, subBlock.id, 0), 10 seconds)
+    val subBlockData = Await.result(store.retrieveSubBlock(blockMeta.id, subBlock.id, 0), snackFSConfiguration.atMost)
     val dataString = new String(IOUtils.toByteArray(subBlockData))
     dataString must be("Random test data")
 
     val iNode = INode("user", "group", FsPermission.getDefault, FileType.FILE, List(blockMeta, blockMetaSecond), timestamp)
 
-    Await.ready(store.deleteBlocks(iNode), 10 seconds)
+    Await.ready(store.deleteBlocks(iNode), snackFSConfiguration.atMost)
 
     val exception = intercept[NotFoundException] {
-      val subBlockData = Await.result(store.retrieveSubBlock(blockMeta.id, subBlock.id, 0), 10 seconds)
+      Await.result(store.retrieveSubBlock(blockMeta.id, subBlock.id, 0), snackFSConfiguration.atMost)
     }
     assert(exception.getMessage === null)
   }
@@ -129,15 +116,15 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
   it should "fetch all sub-paths" in {
     val path1 = new Path("/tmp")
     val iNode1 = INode("user", "group", FsPermission.getDefault, FileType.DIRECTORY, null, timestamp)
-    Await.ready(store.storeINode(path1, iNode1), 10 seconds)
+    Await.ready(store.storeINode(path1, iNode1), snackFSConfiguration.atMost)
 
     val path2 = new Path("/tmp/user")
-    Await.ready(store.storeINode(path2, iNode1), 10 seconds)
+    Await.ready(store.storeINode(path2, iNode1), snackFSConfiguration.atMost)
 
     val path3 = new Path("/tmp/user/file")
-    Await.ready(store.storeINode(path3, iNode), 10 seconds)
+    Await.ready(store.storeINode(path3, iNode), snackFSConfiguration.atMost)
 
-    val result = Await.result(store.fetchSubPaths(path1,true), 10 seconds)
+    val result = Await.result(store.fetchSubPaths(path1, isDeepFetch = true), snackFSConfiguration.atMost)
     println(result.toString())
 
     result.size must be(2)
@@ -146,32 +133,32 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
   it should "fetch sub-paths" in {
     val path1 = new Path("/tmp")
     val iNode1 = INode("user", "group", FsPermission.getDefault, FileType.DIRECTORY, null, timestamp)
-    Await.ready(store.storeINode(path1, iNode1), 10 seconds)
+    Await.ready(store.storeINode(path1, iNode1), snackFSConfiguration.atMost)
 
     val path2 = new Path("/tmp/user")
-    Await.ready(store.storeINode(path2, iNode1), 10 seconds)
+    Await.ready(store.storeINode(path2, iNode1), snackFSConfiguration.atMost)
 
     val path3 = new Path("/tmp/user/file")
-    Await.ready(store.storeINode(path3, iNode), 10 seconds)
+    Await.ready(store.storeINode(path3, iNode), snackFSConfiguration.atMost)
 
-    val result = Await.result(store.fetchSubPaths(path1,false), 10 seconds)
+    val result = Await.result(store.fetchSubPaths(path1, isDeepFetch = false), snackFSConfiguration.atMost)
     println(result.toString())
 
     result.size must be(1)
   }
 
   it should "get block locations" in {
-    val inode = Await.result(store.retrieveINode(new Path("/tmp/user/file")), 10 seconds)
+    val inode = Await.result(store.retrieveINode(new Path("/tmp/user/file")), snackFSConfiguration.atMost)
 
-    val map = Await.result(store.getBlockLocations("STORE", "/tmp/user/file"), 10 seconds)
+    val map = Await.result(store.getBlockLocations("/tmp/user/file"), snackFSConfiguration.atMost)
 
     map.size must be(inode.blocks.size)
 
   }
 
   override def afterAll() = {
-    Await.ready(AsyncUtil.executeAsync[system_drop_keyspace_call](client.system_drop_keyspace("STORE", _)), 10 seconds)
-    clientManager.stop()
+    Await.ready(store.dropKeyspace, snackFSConfiguration.atMost)
+    store.disconnect()
   }
 
 }

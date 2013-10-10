@@ -46,18 +46,20 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
     output.toString
   }
 
+  val isTrue = true
+
   val hadoopFSCommands = Seq("./hadoop", "fs")
   val filesystem = "snackfs://localhost:9000/"
 
   val testingDir = filesystem + "testFSShell/"
-  val projectHome = "/snackfs/src/" //to be set
+  val projectHome = "/home/shiti/work/tj/snackfs/src/" //to be set
 
   val listCommand = hadoopFSCommands ++ Seq("-lsr", filesystem)
 
   //mkdir
   it should "make a new directory" in {
     val command = hadoopFSCommands ++ Seq("-mkdir", testingDir)
-    val output = executeAndGetOutput(command)
+    executeAndGetOutput(command)
     val listoutPut = executeAndGetOutput(listCommand)
     listoutPut must include("/testFSShell")
   }
@@ -65,7 +67,7 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
   it should "not make a new directory with the name of an existing one" in {
     val command = hadoopFSCommands ++ Seq("-mkdir", testingDir)
     val exception = intercept[IOException] {
-      val output = executeAndGetOutput(command)
+      executeAndGetOutput(command)
     }
     val errMsg = "mkdir: cannot create directory"
     exception.getMessage must startWith(errMsg)
@@ -85,7 +87,7 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
     val source = projectHome + "test/resources/small.txt"
     val command = hadoopFSCommands ++ Seq("-copyFromLocal", source, testingDir)
     val exception = intercept[IOException] {
-      val output = executeAndGetOutput(command)
+      executeAndGetOutput(command)
     }
     exception.getMessage must include("already exists")
   }
@@ -98,7 +100,7 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
     executeAndGetOutput(command)
 
     val copiedFile = new File(destination)
-    copiedFile.exists() must be(true)
+    copiedFile.exists() must be(isTrue)
   }
 
   it should "not overwrite a file using copyToLocal" in {
@@ -106,7 +108,7 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
     val source = testingDir + "small.txt"
     val command = hadoopFSCommands ++ Seq("-copyToLocal", source, destination)
     val exception = intercept[IOException] {
-      val output = executeAndGetOutput(command)
+      executeAndGetOutput(command)
     }
     exception.getMessage must include("already exists")
   }
@@ -119,7 +121,7 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
     executeAndGetOutput(command)
 
     val copiedFile = new File(destination)
-    copiedFile.exists() must be(true)
+    copiedFile.exists() must be(isTrue)
   }
 
   //cat
@@ -212,7 +214,7 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
     executeAndGetOutput(command)
     val output = executeAndGetOutput(listCommand)
     output must include("/testFSShell")
-    output must not include ("/testFSShell/small.txt")
+    output must not include "/testFSShell/small.txt"
     output must include("/small.txt")
   }
 
@@ -242,14 +244,14 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
   it should "display stat" in {
     val command = hadoopFSCommands ++ Seq("-stat", filesystem)
     val output = executeAndGetOutput(command)
-    output must not be ("[]")
+    output must not be "[]"
   }
 
   //tail
   it should "display last KB of a file" in {
     val readCommand = hadoopFSCommands ++ Seq("-tail", filesystem + "/vsmall.txt")
     val output = executeAndGetOutput(readCommand)
-    output.length must not be (0)
+    output.length must not be 0
   }
 
   //touchz

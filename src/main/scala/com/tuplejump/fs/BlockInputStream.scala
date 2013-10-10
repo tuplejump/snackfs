@@ -24,9 +24,8 @@ import scala.concurrent.duration._
 import com.tuplejump.model.BlockMeta
 
 case class
-BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta) extends InputStream {
+BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, atMost: FiniteDuration) extends InputStream {
   private val LENGTH = blockMeta.length
-  private val AT_MOST: FiniteDuration = 10 seconds
 
   private var isClosed: Boolean = false
   private var inputStream: InputStream = null
@@ -49,7 +48,7 @@ BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta) extends InputStre
     targetSubBlockSize = subBlock.length
     targetSubBlockOffset = subBlock.offset
 
-    Await.result(store.retrieveSubBlock(blockMeta.id, subBlock.id, offset), AT_MOST)
+    Await.result(store.retrieveSubBlock(blockMeta.id, subBlock.id, offset), atMost)
   }
 
   def read: Int = {

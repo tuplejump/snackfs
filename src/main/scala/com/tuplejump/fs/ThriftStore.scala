@@ -39,27 +39,34 @@ import com.tuplejump.model._
 import com.tuplejump.model.SubBlockMeta
 import com.tuplejump.model.BlockMeta
 import com.tuplejump.model.GenericOpSuccess
-import org.apache.cassandra.dht.Token.TokenFactory
-import java.util
 import org.apache.cassandra.dht.Murmur3Partitioner
+import org.apache.thrift.async.TAsyncClientManager
+import org.apache.thrift.protocol.TBinaryProtocol
+import org.apache.thrift.transport.TNonblockingSocket
 
-class ThriftStore(client: AsyncClient,
-                  consistencyLevelWrite: ConsistencyLevel = ConsistencyLevel.QUORUM,
-                  consistencyLevelRead: ConsistencyLevel = ConsistencyLevel.QUORUM) extends FileSystemStore {
-
+class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
   private val PATH_COLUMN: ByteBuffer = ByteBufferUtil.bytes("path")
   private val PARENT_PATH_COLUMN: ByteBuffer = ByteBufferUtil.bytes("parent_path")
   private val SENTINEL_COLUMN: ByteBuffer = ByteBufferUtil.bytes("sentinel")
   private val SENTINEL_VALUE: ByteBuffer = ByteBufferUtil.bytes("x")
   private val DATA_COLUMN: ByteBuffer = ByteBufferUtil.bytes("data")
+  private val GRACE_SECONDS: Int = 60
 
   private val INODE_COLUMN_FAMILY_NAME = "inode"
   private val BLOCK_COLUMN_FAMILY_NAME = "sblock"
 
   private val partitioner = new Murmur3Partitioner()
 
-  def createKeyspace(ksDef: KsDef): Future[Keyspace] = {
+  private val clientManager = new TAsyncClientManager()
+  private val protocolFactory = new TBinaryProtocol.Factory()
+  private val transport = new TNonblockingSocket(configuration.CassandraHost, configuration.CassandraPort)
+
+  private val client = new AsyncClient(protocolFactory, clientManager, transport)
+
+  def createKeyspace: Future[Keyspace] = {
+
+    val ksDef = buildSchema
     val prom = promise[Keyspace]()
     val ksDefFuture = AsyncUtil.executeAsync[describe_keyspace_call](client.describe_keyspace(ksDef.getName, _))
 
@@ -88,7 +95,33 @@ class ThriftStore(client: AsyncClient,
     prom.future
   }
 
-  private def createINodeCF(cfName: String, keyspace: String) = {
+  def init: Future[Unit] = {
+    val prom = promise[Unit]()
+    val setKeyspaceFuture = AsyncUtil.executeAsync[set_keyspace_call](client.set_keyspace(configuration.keySpace, _))
+    setKeyspaceFuture onSuccess {
+      case p => prom success p.getResult()
+    }
+    setKeyspaceFuture onFailure {
+      case f => prom failure f
+    }
+    prom.future
+  }
+
+  def dropKeyspace: Future[Unit] = {
+    val prom = promise[Unit]()
+    val dropFuture = AsyncUtil.executeAsync[system_drop_keyspace_call](client.system_drop_keyspace(configuration.keySpace, _))
+    dropFuture onSuccess {
+      case p => prom success p.getResult
+    }
+    dropFuture onFailure {
+      case f => prom failure f
+    }
+    prom.future
+  }
+
+  def disconnect() = clientManager.stop()
+
+  private def createINodeCF(cfName: String) = {
 
     val PATH_INDEX_LABEL = "path"
     val SENTINEL_INDEX_LABEL = "sentinel"
@@ -96,24 +129,14 @@ class ThriftStore(client: AsyncClient,
 
     val DATA_TYPE = "BytesType"
 
-    val columnFamily = new CfDef()
-    columnFamily.setName(cfName)
+    val columnFamily = new CfDef(configuration.keySpace, cfName)
     columnFamily.setComparator_type(DATA_TYPE)
-    columnFamily.setGc_grace_seconds(60)
+    columnFamily.setGc_grace_seconds(GRACE_SECONDS)
     columnFamily.setComment("Stores file meta data")
-    columnFamily.setKeyspace(keyspace)
 
-    val path = new ColumnDef(PATH_COLUMN, DATA_TYPE).
-      setIndex_type(IndexType.KEYS).
-      setIndex_name(PATH_INDEX_LABEL)
-
-    val sentinel = new ColumnDef(SENTINEL_COLUMN, DATA_TYPE).
-      setIndex_type(IndexType.KEYS).
-      setIndex_name(SENTINEL_INDEX_LABEL)
-
-    val parentPath = new ColumnDef(PARENT_PATH_COLUMN, DATA_TYPE).
-      setIndex_type(IndexType.KEYS).
-      setIndex_name(PARENT_PATH_INDEX_LABEL)
+    val path = generateColumnDefinition(PATH_COLUMN, PATH_INDEX_LABEL)
+    val sentinel = generateColumnDefinition(SENTINEL_COLUMN, SENTINEL_INDEX_LABEL)
+    val parentPath = generateColumnDefinition(PARENT_PATH_COLUMN, PARENT_PATH_INDEX_LABEL)
 
     val metadata = List(path, sentinel, parentPath)
     columnFamily.setColumn_metadata(metadata)
@@ -121,14 +144,20 @@ class ThriftStore(client: AsyncClient,
     columnFamily
   }
 
-  private def createSBlockCF(cfName: String, keyspace: String, minCompaction: Int, maxCompaction: Int) = {
+  private def generateColumnDefinition(columnName: ByteBuffer, indexName: String): ColumnDef = {
+    val DATA_TYPE = "BytesType"
+    val cfDef = new ColumnDef(columnName, DATA_TYPE).setIndex_type(IndexType.KEYS).setIndex_name(indexName)
+    cfDef
+  }
+
+  private def createSBlockCF(cfName: String, minCompaction: Int, maxCompaction: Int) = {
 
     val columnFamily = new CfDef()
     columnFamily.setName(cfName)
     columnFamily.setComparator_type("BytesType")
-    columnFamily.setGc_grace_seconds(60)
+    columnFamily.setGc_grace_seconds(GRACE_SECONDS)
     columnFamily.setComment("Stores blocks of information associated with a inode")
-    columnFamily.setKeyspace(keyspace)
+    columnFamily.setKeyspace(configuration.keySpace)
 
     columnFamily.setMin_compaction_threshold(minCompaction)
     columnFamily.setMax_compaction_threshold(maxCompaction)
@@ -136,13 +165,13 @@ class ThriftStore(client: AsyncClient,
     columnFamily
   }
 
-  def buildSchema(keyspace: String, replicationFactor: Int, replicationStrategy: String): KsDef = {
-    val inode = createINodeCF(INODE_COLUMN_FAMILY_NAME, keyspace)
-    val sblock = createSBlockCF(BLOCK_COLUMN_FAMILY_NAME, keyspace, 16, 64)
+  private def buildSchema: KsDef = {
+    val inode = createINodeCF(INODE_COLUMN_FAMILY_NAME)
+    val sblock = createSBlockCF(BLOCK_COLUMN_FAMILY_NAME, 16, 64)
 
-    val ksDef: KsDef = new KsDef(keyspace, replicationStrategy,
+    val ksDef: KsDef = new KsDef(configuration.keySpace, configuration.replicationStrategy,
       List(inode, sblock))
-    ksDef.setStrategy_options(Map("replication_factor" -> replicationFactor.toString))
+    ksDef.setStrategy_options(Map("replication_factor" -> configuration.replicationFactor.toString))
 
     ksDef
   }
@@ -189,7 +218,7 @@ class ThriftStore(client: AsyncClient,
     val data: ByteBuffer = iNode.serialize
     val timestamp = iNode.timestamp
     val mutationMap: Map[ByteBuffer, java.util.Map[String, java.util.List[Mutation]]] = generateMutationforINode(data, path, timestamp)
-    val iNodeFuture = AsyncUtil.executeAsync[batch_mutate_call](client.batch_mutate(mutationMap, consistencyLevelWrite, _))
+    val iNodeFuture = AsyncUtil.executeAsync[batch_mutate_call](client.batch_mutate(mutationMap, configuration.writeConsistencyLevel, _))
     val prom = promise[GenericOpSuccess]()
     iNodeFuture.onSuccess {
       case p => {
@@ -202,12 +231,10 @@ class ThriftStore(client: AsyncClient,
     prom.future
   }
 
-  private def performGet(key: ByteBuffer,
-                         columnPath: ColumnPath,
-                         consistency: ConsistencyLevel): Future[ColumnOrSuperColumn] = {
+  private def performGet(key: ByteBuffer, columnPath: ColumnPath): Future[ColumnOrSuperColumn] = {
 
     val prom = promise[ColumnOrSuperColumn]()
-    val getFuture = AsyncUtil.executeAsync[get_call](client.get(key, columnPath, consistency, _))
+    val getFuture = AsyncUtil.executeAsync[get_call](client.get(key, columnPath, configuration.readConsistencyLevel, _))
     getFuture.onSuccess {
       case p =>
         try {
@@ -229,7 +256,7 @@ class ThriftStore(client: AsyncClient,
     val inodeDataPath = new ColumnPath(INODE_COLUMN_FAMILY_NAME).setColumn(DATA_COLUMN)
 
     val inodePromise = promise[INode]()
-    val pathInfo = performGet(pathKey, inodeDataPath, consistencyLevelRead)
+    val pathInfo = performGet(pathKey, inodeDataPath)
     pathInfo.onSuccess {
       case p =>
         inodePromise success INode.deserialize(ByteBufferUtil.inputStream(p.column.value), p.column.getTimestamp)
@@ -253,7 +280,7 @@ class ThriftStore(client: AsyncClient,
 
     val prom = promise[GenericOpSuccess]()
     val subBlockFuture = AsyncUtil.executeAsync[insert_call](
-      client.insert(parentBlockId, sblockParent, column, consistencyLevelWrite, _))
+      client.insert(parentBlockId, sblockParent, column, configuration.writeConsistencyLevel, _))
 
     subBlockFuture.onSuccess {
       case p => prom success GenericOpSuccess()
@@ -267,7 +294,7 @@ class ThriftStore(client: AsyncClient,
   def retrieveSubBlock(blockId: UUID, subBlockId: UUID, byteRangeStart: Long): Future[InputStream] = {
     val blockIdBuffer: ByteBuffer = ByteBufferUtil.bytes(blockId)
     val subBlockIdBuffer = ByteBufferUtil.bytes(subBlockId)
-    val subBlockFuture = performGet(blockIdBuffer, new ColumnPath(BLOCK_COLUMN_FAMILY_NAME).setColumn(subBlockIdBuffer), consistencyLevelRead)
+    val subBlockFuture = performGet(blockIdBuffer, new ColumnPath(BLOCK_COLUMN_FAMILY_NAME).setColumn(subBlockIdBuffer))
     val prom = promise[InputStream]()
     subBlockFuture.onSuccess {
       case p =>
@@ -281,7 +308,7 @@ class ThriftStore(client: AsyncClient,
   }
 
   def retrieveBlock(blockMeta: BlockMeta): InputStream = {
-    BlockInputStream(this, blockMeta)
+    BlockInputStream(this, blockMeta, configuration.atMost)
   }
 
   def deleteINode(path: Path): Future[GenericOpSuccess] = {
@@ -292,7 +319,7 @@ class ThriftStore(client: AsyncClient,
     val result = promise[GenericOpSuccess]()
 
     val deleteInodeFuture = AsyncUtil.executeAsync[remove_call](
-      client.remove(pathKey, iNodeColumnPath, timestamp, consistencyLevelWrite, _))
+      client.remove(pathKey, iNodeColumnPath, timestamp, configuration.writeConsistencyLevel, _))
 
     deleteInodeFuture.onSuccess {
       case p => result success GenericOpSuccess()
@@ -304,20 +331,12 @@ class ThriftStore(client: AsyncClient,
   }
 
   def deleteBlocks(iNode: INode): Future[GenericOpSuccess] = {
-    val timestamp = System.currentTimeMillis()
-    val deletion = new Deletion()
-    deletion.setTimestamp(timestamp)
-
-    val mutationMap: Map[ByteBuffer, java.util.Map[String, java.util.List[Mutation]]] = iNode.blocks.map {
-      block =>
-        (ByteBufferUtil.bytes(block.id), Map(BLOCK_COLUMN_FAMILY_NAME ->
-          List(new Mutation().setDeletion(deletion)).asJava).asJava)
-    }.toMap
+    val mutationMap = generateINodeMutationMap(iNode)
 
     val result = promise[GenericOpSuccess]()
 
     val deleteFuture = AsyncUtil.executeAsync[batch_mutate_call](
-      client.batch_mutate(mutationMap, consistencyLevelWrite, _))
+      client.batch_mutate(mutationMap, configuration.writeConsistencyLevel, _))
     deleteFuture.onSuccess {
       case p => {
         result success GenericOpSuccess()
@@ -331,6 +350,18 @@ class ThriftStore(client: AsyncClient,
     result.future
   }
 
+  private def generateINodeMutationMap(iNode: INode): Map[ByteBuffer, java.util.Map[String, java.util.List[Mutation]]] = {
+    val timestamp = System.currentTimeMillis()
+    val deletion = new Deletion()
+    deletion.setTimestamp(timestamp)
+
+    iNode.blocks.map {
+      block =>
+        (ByteBufferUtil.bytes(block.id), Map(BLOCK_COLUMN_FAMILY_NAME ->
+          List(new Mutation().setDeletion(deletion)).asJava).asJava)
+    }.toMap
+  }
+
   def fetchSubPaths(path: Path, isDeepFetch: Boolean): Future[Set[Path]] = {
     val startPath = path.toUri.getPath
     val startPathBuffer = ByteBufferUtil.bytes(startPath)
@@ -342,11 +373,7 @@ class ThriftStore(client: AsyncClient,
     if (isDeepFetch) {
       startPathIndexExpr = new IndexExpression(PATH_COLUMN, IndexOperator.GT, startPathBuffer)
       if (startPath.length > 1) {
-        val lastChar = (startPath(startPath.length - 1) + 1).asInstanceOf[Char]
-        val endPath = startPath.substring(0, startPath.length - 1) + lastChar
-        val endPathBuffer = ByteBufferUtil.bytes(endPath)
-        val endPathIndexExpr = new IndexExpression(PATH_COLUMN, IndexOperator.LT, endPathBuffer)
-        indexExpr = List(endPathIndexExpr)
+        indexExpr = indexExprForDeepFetch(startPath)
       }
     } else {
       startPathIndexExpr = new IndexExpression(PARENT_PATH_COLUMN, IndexOperator.EQ, startPathBuffer)
@@ -354,12 +381,16 @@ class ThriftStore(client: AsyncClient,
 
     indexExpr = indexExpr ++ List(sentinelIndexExpr, startPathIndexExpr)
 
+    fetchPaths(indexExpr)
+  }
+
+  private def fetchPaths(indexExpr: List[IndexExpression]): Future[Set[Path]] = {
     val pathPredicate = new SlicePredicate().setColumn_names(List(PATH_COLUMN))
     val iNodeParent = new ColumnParent(INODE_COLUMN_FAMILY_NAME)
 
     val indexClause = new IndexClause(indexExpr, ByteBufferUtil.EMPTY_BYTE_BUFFER, 100000)
     val rowFuture = AsyncUtil.executeAsync[get_indexed_slices_call](
-      client.get_indexed_slices(iNodeParent, indexClause, pathPredicate, consistencyLevelRead, _))
+      client.get_indexed_slices(iNodeParent, indexClause, pathPredicate, configuration.readConsistencyLevel, _))
 
     val result = promise[Set[Path]]()
     rowFuture.onSuccess {
@@ -378,8 +409,16 @@ class ThriftStore(client: AsyncClient,
     result.future
   }
 
+  private def indexExprForDeepFetch(startPath: String): List[IndexExpression] = {
+    val lastChar = (startPath(startPath.length - 1) + 1).asInstanceOf[Char]
+    val endPath = startPath.substring(0, startPath.length - 1) + lastChar
+    val endPathBuffer = ByteBufferUtil.bytes(endPath)
+    val endPathIndexExpr = new IndexExpression(PATH_COLUMN, IndexOperator.LT, endPathBuffer)
+    List(endPathIndexExpr)
+  }
 
-  def getBlockLocations(keyspace:String, path: String): Future[Map[BlockMeta, String]] = {
+
+  def getBlockLocations(path: String): Future[Map[BlockMeta, String]] = {
 
     val result = promise[Map[BlockMeta, String]]()
     val inodeFuture = retrieveINode(new Path(path))
@@ -391,7 +430,7 @@ class ThriftStore(client: AsyncClient,
 
         //Get the ring description from the server
         val ringFuture = AsyncUtil.executeAsync[describe_ring_call](
-          client.describe_ring(keyspace, _)
+          client.describe_ring(configuration.keySpace, _)
         )
 
 

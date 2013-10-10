@@ -22,10 +22,13 @@ import org.scalatest.{BeforeAndAfterAll, FlatSpec}
 import org.scalatest.matchers.MustMatchers
 import java.net.URI
 import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.fs.{Path}
+import org.apache.hadoop.fs.Path
 import java.io.{FileNotFoundException, IOException}
 
 class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
+
+  val isTrue = true
+  val isFalse = false
 
   val fs = SnackFS()
   val uri = URI.create("snackfs://localhost:9000")
@@ -39,7 +42,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
   it should "add a directory" in {
     val result = fs.mkdirs(new Path("/mytestdir"))
-    assert(result === true)
+    assert(result === isTrue)
   }
 
   it should "create an entry for a file" in {
@@ -54,7 +57,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     fsData.write("SOME CONTENT".getBytes)
     fsData.close()
     val path = new Path("/home/Downloads/someTest")
-    fs.mkdirs(path) must be(false)
+    fs.mkdirs(path) must be(isFalse)
   }
 
   it should "allow to read from a file" in {
@@ -95,7 +98,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     fsData.close()
 
     val status = fs.getFileStatus(path)
-    !status.isDir must be(true)
+    !status.isDir must be(isTrue)
     status.getLen must be(12)
     status.getPath must be(path)
   }
@@ -147,33 +150,33 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
     val filePath1 = new Path("/tmp1/testFile1")
     val fileData1 = fs.create(filePath1)
-    fileData1.write("This is a test to check list functionality".getBytes)
+    fileData1.write("This is a test to check delete functionality".getBytes)
     fileData1.close()
 
     val filePath2 = new Path("/tmp1/user1/file")
     val fileData2 = fs.create(filePath2)
-    fileData2.write("This is a test to check list functionality".getBytes)
+    fileData2.write("This is a test to check delete functionality".getBytes)
     fileData2.close()
 
     val dirStatus = fs.getFileStatus(dirPath2)
-    dirStatus.isDir must be(true)
+    dirStatus.isDir must be(isTrue)
 
     val baseDirPath = new Path("/tmp1")
-    val result = fs.delete(baseDirPath, true)
-    result must be(true)
+    val result = fs.delete(baseDirPath, isTrue)
+    result must be(isTrue)
 
     val exception1 = intercept[FileNotFoundException] {
-      val dir = fs.getFileStatus(dirPath2)
+      fs.getFileStatus(dirPath2)
     }
     exception1.getMessage must be("No such file exists")
 
     val exception2 = intercept[FileNotFoundException] {
-      val dir = fs.getFileStatus(filePath2)
+      fs.getFileStatus(filePath2)
     }
     exception2.getMessage must be("No such file exists")
 
     val exception3 = intercept[FileNotFoundException] {
-      val dir = fs.getFileStatus(baseDirPath)
+      fs.getFileStatus(baseDirPath)
     }
     exception3.getMessage must be("No such file exists")
 
@@ -190,15 +193,15 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
     val result = fs.rename(filePath1, filePath2)
 
-    result must be(true)
+    result must be(isTrue)
 
     val exception2 = intercept[FileNotFoundException] {
-      val dir = fs.getFileStatus(filePath1)
+      fs.getFileStatus(filePath1)
     }
     exception2.getMessage must be("No such file exists")
 
     val fileStatus = fs.getFileStatus(filePath2)
-    !fileStatus.isDir must be(true)
+    !fileStatus.isDir must be(isTrue)
   }
 
   it should "rename a directory" in {
@@ -210,12 +213,12 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
     val filePath1 = new Path("/abc/testfile")
     val fileData1 = fs.create(filePath1)
-    fileData1.write("This is a test to check list functionality".getBytes)
+    fileData1.write("This is a test to check rename functionality".getBytes)
     fileData1.close()
 
     val filePath2 = new Path("/abc/jkl/testfile")
     val fileData2 = fs.create(filePath2)
-    fileData2.write("This is a test to check list functionality".getBytes)
+    fileData2.write("This is a test to check rename functionality".getBytes)
     fileData2.close()
 
     val baseDirPath = new Path("/abc")
@@ -230,6 +233,6 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     dirStatus.filter(_.isDir).length must be(3)
 
     val fileStatus2 = fs.getFileStatus(new Path("/pqr/lmn/jkl/testfile"))
-    !fileStatus2.isDir must be(true)
+    !fileStatus2.isDir must be(isTrue)
   }
 }
