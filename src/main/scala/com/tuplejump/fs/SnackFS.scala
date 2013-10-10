@@ -359,4 +359,8 @@ case class SnackFS() extends FileSystem {
   }
 
   def delete(p1: Path): Boolean = delete(p1, false)
+
+  /* override def getFileBlockLocations(file: FileStatus, start: Long, len: Long): Array[BlockLocation] = {
+    val blocks = store.getBlockLocations(keyspace)
+  }  */
 }

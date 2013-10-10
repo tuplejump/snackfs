@@ -160,6 +160,15 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
     result.size must be(1)
   }
 
+  it should "get block locations" in {
+    val inode = Await.result(store.retrieveINode(new Path("/tmp/user/file")), 10 seconds)
+
+    val map = Await.result(store.getBlockLocations("STORE", "/tmp/user/file"), 10 seconds)
+
+    map.size must be(inode.blocks.size)
+
+  }
+
   override def afterAll() = {
     Await.ready(AsyncUtil.executeAsync[system_drop_keyspace_call](client.system_drop_keyspace("STORE", _)), 10 seconds)
     clientManager.stop()

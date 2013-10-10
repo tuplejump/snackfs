@@ -39,6 +39,9 @@ import com.tuplejump.model._
 import com.tuplejump.model.SubBlockMeta
 import com.tuplejump.model.BlockMeta
 import com.tuplejump.model.GenericOpSuccess
+import org.apache.cassandra.dht.Token.TokenFactory
+import java.util
+import org.apache.cassandra.dht.Murmur3Partitioner
 
 class ThriftStore(client: AsyncClient,
                   consistencyLevelWrite: ConsistencyLevel = ConsistencyLevel.QUORUM,
@@ -53,6 +56,8 @@ class ThriftStore(client: AsyncClient,
 
   private val INODE_COLUMN_FAMILY_NAME = "inode"
   private val BLOCK_COLUMN_FAMILY_NAME = "sblock"
+
+  private val partitioner = new Murmur3Partitioner()
 
   def createKeyspace(ksDef: KsDef): Future[Keyspace] = {
     val prom = promise[Keyspace]()
@@ -131,7 +136,7 @@ class ThriftStore(client: AsyncClient,
     columnFamily
   }
 
-  def buildSchema(keyspace: String, replicationFactor: Int,replicationStrategy:String): KsDef = {
+  def buildSchema(keyspace: String, replicationFactor: Int, replicationStrategy: String): KsDef = {
     val inode = createINodeCF(INODE_COLUMN_FAMILY_NAME, keyspace)
     val sblock = createSBlockCF(BLOCK_COLUMN_FAMILY_NAME, keyspace, 16, 64)
 
@@ -368,6 +373,61 @@ class ThriftStore(client: AsyncClient,
     }
     rowFuture.onFailure {
       case f => result failure f
+    }
+
+    result.future
+  }
+
+
+  def getBlockLocations(keyspace:String, path: String): Future[Map[BlockMeta, String]] = {
+
+    val result = promise[Map[BlockMeta, String]]()
+    val inodeFuture = retrieveINode(new Path(path))
+
+    var response = Map.empty[BlockMeta, String]
+
+    inodeFuture.onSuccess {
+      case inode =>
+
+        //Get the ring description from the server
+        val ringFuture = AsyncUtil.executeAsync[describe_ring_call](
+          client.describe_ring(keyspace, _)
+        )
+
+
+        ringFuture.onSuccess {
+          case r =>
+            val tf = partitioner.getTokenFactory
+            val ring = r.getResult.map(p => (p.getEndpoints, p.getStart_token.toLong, p.getEnd_token.toLong))
+
+            //For each block in the file, get the owner node
+            inode.blocks.foreach(b => {
+              val uuid: String = b.id.toString
+              val token = tf.fromByteArray(ByteBufferUtil.bytes(b.id))
+
+              val xr = ring.filter {
+                p =>
+                  if (p._2 < p._3) {
+                    p._2 <= token.token && p._3 >= token.token
+                  } else {
+                    (p._2 <= token.token && Long.MaxValue >= token.token) || (p._3 >= token.token && Long.MinValue <= token.token)
+                  }
+              }
+
+
+              if (xr.length > 0) {
+                response += (b -> xr(0)._1(0))
+              } else {
+                response += (b -> ring(0)._1(0))
+              }
+            })
+
+            result success response
+        }
+
+        ringFuture.onFailure {
+          case f => result failure f
+        }
     }
 
     result.future
