@@ -148,9 +148,11 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
   }
 
   it should "get block locations" in {
-    val inode = Await.result(store.retrieveINode(new Path("/tmp/user/file")), snackFSConfiguration.atMost)
+    val path1: Path = new Path("/tmp/user/file")
 
-    val map = Await.result(store.getBlockLocations("/tmp/user/file"), snackFSConfiguration.atMost)
+    val inode = Await.result(store.retrieveINode(path1), snackFSConfiguration.atMost)
+
+    val map = Await.result(store.getBlockLocations(path1), snackFSConfiguration.atMost)
 
     map.size must be(inode.blocks.size)
 

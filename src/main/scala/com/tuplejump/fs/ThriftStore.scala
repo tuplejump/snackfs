@@ -43,6 +43,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner
 import org.apache.thrift.async.TAsyncClientManager
 import org.apache.thrift.protocol.TBinaryProtocol
 import org.apache.thrift.transport.TNonblockingSocket
+import scala.collection.mutable
 
 class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
@@ -418,12 +419,12 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
   }
 
 
-  def getBlockLocations(path: String): Future[Map[BlockMeta, String]] = {
+  def getBlockLocations(path: Path): Future[Map[BlockMeta, List[String]]] = {
 
-    val result = promise[Map[BlockMeta, String]]()
-    val inodeFuture = retrieveINode(new Path(path))
+    val result = promise[Map[BlockMeta, List[String]]]()
+    val inodeFuture = retrieveINode(path)
 
-    var response = Map.empty[BlockMeta, String]
+    var response = Map.empty[BlockMeta, List[String]]
 
     inodeFuture.onSuccess {
       case inode =>
@@ -455,9 +456,10 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
 
               if (xr.length > 0) {
-                response += (b -> xr(0)._1(0))
+                val endpoints: List[String] = xr.flatMap(_._1).toList
+                response += (b -> endpoints)
               } else {
-                response += (b -> ring(0)._1(0))
+                response += (b -> ring(0)._1.toList)
               }
             })
 

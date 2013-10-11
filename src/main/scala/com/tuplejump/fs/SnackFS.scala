@@ -38,6 +38,7 @@ case class SnackFS() extends FileSystem {
 
   private var atMost: FiniteDuration = null
   private var store: FileSystemStore = null
+  private var customConfiguration: SnackFSConfiguration = _
 
   override def initialize(uri: URI, configuration: Configuration) = {
     super.initialize(uri, configuration)
@@ -48,7 +49,7 @@ case class SnackFS() extends FileSystem {
     val directory = new Path("/user", System.getProperty("user.name"))
     currentDirectory = makeQualified(directory)
 
-    val customConfiguration = SnackFSConfiguration.get(configuration)
+    customConfiguration = SnackFSConfiguration.get(configuration)
 
     store = new ThriftStore(customConfiguration)
     atMost = customConfiguration.atMost
@@ -134,7 +135,7 @@ case class SnackFS() extends FileSystem {
           mkdirs(parentPath)
         }
     }
-    val fileStream = new FileSystemOutputStream(store, filePath, blockSize, subBlockSize, bufferSize,atMost)
+    val fileStream = new FileSystemOutputStream(store, filePath, blockSize, subBlockSize, bufferSize, atMost)
     val fileDataStream = new FSDataOutputStream(fileStream, statistics)
     fileDataStream
   }
@@ -310,7 +311,21 @@ case class SnackFS() extends FileSystem {
 
   def delete(p1: Path): Boolean = delete(p1, isRecursive = false)
 
-  /* override def getFileBlockLocations(file: FileStatus, start: Long, len: Long): Array[BlockLocation] = {
-    val blocks = store.getBlockLocations(keyspace)
-  }  */
+  def getFileBlockLocations(path: Path, start: Long, len: Long): Array[BlockLocation] = {
+    val blocks = Await.result(store.getBlockLocations(path), atMost)
+    println(blocks.size)
+    blocks.filterNot(x => x._1.offset + x._1.length < start).map {
+      case (b, ips) =>
+        val bl = new BlockLocation()
+        bl.setHosts(ips.toArray)
+        bl.setNames(ips.map(i => "%s:%s".format(i, customConfiguration.CassandraPort)).toArray)
+        bl.setOffset(b.offset)
+        bl.setLength(b.length)
+        bl
+    }.toArray
+  }
+
+  override def getFileBlockLocations(file: FileStatus, start: Long, len: Long): Array[BlockLocation] = {
+    getFileBlockLocations(file.getPath, start, len)
+  }
 }

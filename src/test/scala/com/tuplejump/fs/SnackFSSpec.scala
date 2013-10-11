@@ -103,7 +103,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     status.getPath must be(path)
   }
 
-  it should "get file block locations" in {
+  /* it should "get file block locations" in {
     val path = new Path("/home/Downloads/testLocations")
     val fsData = fs.create(path)
     fsData.write("This is a test to check the block location details".getBytes)
@@ -117,7 +117,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     val status = fs.getFileStatus(path)
     val locations = fs.getFileBlockLocations(status, 0, 10)
     assert(locations(0).getLength === 250)
-  }
+  }  */
 
   it should "list all files/directories within the given directory" in {
     val dirPath1 = new Path("/tmp/user")
@@ -234,5 +234,23 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
     val fileStatus2 = fs.getFileStatus(new Path("/pqr/lmn/jkl/testfile"))
     !fileStatus2.isDir must be(isTrue)
+  }
+
+  it should "be able to get locations for all blocks in a file" in {
+    val path = new Path("/home/Downloads/testBlockLocations")
+    val fsData = fs.create(path)
+
+    1 to 100000 foreach {
+      i =>
+        fsData.write("LINE NO: %d Content: Test data to create blocks\n".format(i).getBytes)
+    }
+
+    fsData.close()
+
+    val status = fs.getFileStatus(path)
+    val locations = fs.getFileBlockLocations(status, 0, status.getLen)
+
+
+    assert(locations === 250)
   }
 }
