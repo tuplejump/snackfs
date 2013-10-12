@@ -24,6 +24,7 @@ import java.net.URI
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import java.io.{FileNotFoundException, IOException}
+import java.util.Date
 
 class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
@@ -34,6 +35,9 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   val uri = URI.create("snackfs://localhost:9000")
   fs.initialize(uri, new Configuration())
 
+  val timestamp = new Date()
+  val basePath = "/test" + timestamp.getTime
+
   it should "create a new filesystem with given store" in {
     fs.getUri must be(uri)
     val user = System.getProperty("user.name", "none")
@@ -41,31 +45,31 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   }
 
   it should "add a directory" in {
-    val result = fs.mkdirs(new Path("/mytestdir"))
+    val result = fs.mkdirs(new Path(basePath + "/mytestdir"))
     assert(result === isTrue)
   }
 
   it should "create an entry for a file" in {
-    val fsData = fs.create(new Path("/home/Downloads/JSONParser.js"))
+    val fsData = fs.create(new Path(basePath + "/home/Downloads/JSONParser.js"))
     fsData.write("SOME CONTENT".getBytes)
     val position = fsData.getPos
     position must be(12)
   }
 
-  it should "not when trying to add an existing file as a directory" in {
-    val fsData = fs.create(new Path("/home/Downloads/someTest"))
+  it should "result in false when trying to add an existing file as a directory" in {
+    val fsData = fs.create(new Path(basePath + "/home/Downloads/someTest"))
     fsData.write("SOME CONTENT".getBytes)
     fsData.close()
-    val path = new Path("/home/Downloads/someTest")
+    val path = new Path(basePath + "/home/Downloads/someTest")
     fs.mkdirs(path) must be(isFalse)
   }
 
   it should "allow to read from a file" in {
-    val fsData = fs.create(new Path("/home/Downloads/random"))
+    val fsData = fs.create(new Path(basePath + "/home/Downloads/random"))
     fsData.write("SOME CONTENT".getBytes)
     fsData.close()
 
-    val is = fs.open(new Path("/home/Downloads/random"))
+    val is = fs.open(new Path(basePath + "/home/Downloads/random"))
     var dataArray = new Array[Byte](12)
     is.readFully(0, dataArray)
     is.close()
@@ -75,7 +79,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   }
 
   it should "throw an exception when trying to open a directory" in {
-    val path = new Path("/test")
+    val path = new Path(basePath + "/test")
     fs.mkdirs(path)
     val exception = intercept[IOException] {
       fs.open(path)
@@ -84,7 +88,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   }
 
   it should "throw an exception when trying to open a file which doesn't exist" in {
-    val path = new Path("/newFile")
+    val path = new Path(basePath + "/newFile")
     val exception = intercept[IOException] {
       fs.open(path)
     }
@@ -92,7 +96,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   }
 
   it should "get file status" in {
-    val path = new Path("/home/Downloads/testStatus")
+    val path = new Path(basePath + "/home/Downloads/testStatus")
     val fsData = fs.create(path)
     fsData.write("SOME CONTENT".getBytes)
     fsData.close()
@@ -120,22 +124,22 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   }  */
 
   it should "list all files/directories within the given directory" in {
-    val dirPath1 = new Path("/tmp/user")
+    val dirPath1 = new Path(basePath + "/tmp/user")
     fs.mkdirs(dirPath1)
-    val dirPath2 = new Path("/tmp/local")
+    val dirPath2 = new Path(basePath + "/tmp/local")
     fs.mkdirs(dirPath2)
 
-    val filePath1 = new Path("/tmp/testFile")
+    val filePath1 = new Path(basePath + "/tmp/testFile")
     val fileData1 = fs.create(filePath1)
     fileData1.write("This is a test to check list functionality".getBytes)
     fileData1.close()
 
-    val filePath2 = new Path("/tmp/user/file")
+    val filePath2 = new Path(basePath + "/tmp/user/file")
     val fileData2 = fs.create(filePath2)
     fileData2.write("This is a test to check list functionality".getBytes)
     fileData2.close()
 
-    val baseDirPath = new Path("/tmp")
+    val baseDirPath = new Path(basePath + "/tmp")
     val result = fs.listStatus(baseDirPath)
     result.length must be(3)
     result.filter(!_.isDir).length must be(1)
@@ -143,17 +147,17 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   }
 
   it should "delete all files/directories within the given directory" in {
-    val dirPath1 = new Path("/tmp1/user1")
+    val dirPath1 = new Path(basePath + "/tmp1/user1")
     fs.mkdirs(dirPath1)
-    val dirPath2 = new Path("/tmp1/local1")
+    val dirPath2 = new Path(basePath + "/tmp1/local1")
     fs.mkdirs(dirPath2)
 
-    val filePath1 = new Path("/tmp1/testFile1")
+    val filePath1 = new Path(basePath + "/tmp1/testFile1")
     val fileData1 = fs.create(filePath1)
     fileData1.write("This is a test to check delete functionality".getBytes)
     fileData1.close()
 
-    val filePath2 = new Path("/tmp1/user1/file")
+    val filePath2 = new Path(basePath + "/tmp1/user1/file")
     val fileData2 = fs.create(filePath2)
     fileData2.write("This is a test to check delete functionality".getBytes)
     fileData2.close()
@@ -161,7 +165,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     val dirStatus = fs.getFileStatus(dirPath2)
     dirStatus.isDir must be(isTrue)
 
-    val baseDirPath = new Path("/tmp1")
+    val baseDirPath = new Path(basePath + "/tmp1")
     val result = fs.delete(baseDirPath, isTrue)
     result must be(isTrue)
 
@@ -184,12 +188,12 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
   it should "rename a file" in {
 
-    val filePath1 = new Path("/tmp2/testRename")
+    val filePath1 = new Path(basePath + "/tmp2/testRename")
     val fileData1 = fs.create(filePath1)
     fileData1.write("This is a test to check rename functionality".getBytes)
     fileData1.close()
 
-    val filePath2 = new Path("/tmp2/newName")
+    val filePath2 = new Path(basePath + "/tmp2/newName")
 
     val result = fs.rename(filePath1, filePath2)
 
@@ -206,51 +210,57 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
   it should "rename a directory" in {
 
-    val dirPath1 = new Path("/abc/user")
+    val dirPath1 = new Path(basePath + "/abc/user")
     fs.mkdirs(dirPath1)
-    val dirPath2 = new Path("/abc/local")
+    val dirPath2 = new Path(basePath + "/abc/local")
     fs.mkdirs(dirPath2)
 
-    val filePath1 = new Path("/abc/testfile")
+    val filePath1 = new Path(basePath + "/abc/testfile")
     val fileData1 = fs.create(filePath1)
     fileData1.write("This is a test to check rename functionality".getBytes)
     fileData1.close()
 
-    val filePath2 = new Path("/abc/jkl/testfile")
+    val filePath2 = new Path(basePath + "/abc/jkl/testfile")
     val fileData2 = fs.create(filePath2)
     fileData2.write("This is a test to check rename functionality".getBytes)
     fileData2.close()
 
-    val baseDirPath = new Path("/abc")
-    val dirStatus1 = fs.listStatus(new Path("/abc"))
+    val baseDirPath = new Path(basePath + "/abc")
+    val dirStatus1 = fs.listStatus(baseDirPath)
     dirStatus1.filter(!_.isDir).length must be(1)
 
-    fs.mkdirs(new Path("/pqr"))
-    fs.rename(baseDirPath, new Path("/pqr/lmn"))
+    fs.mkdirs(new Path(basePath + "/pqr"))
+    fs.rename(baseDirPath, new Path(basePath + "/pqr/lmn"))
 
-    val dirStatus = fs.listStatus(new Path("/pqr/lmn"))
+    val dirStatus = fs.listStatus(new Path(basePath + "/pqr/lmn"))
     dirStatus.filter(!_.isDir).length must be(1)
     dirStatus.filter(_.isDir).length must be(3)
 
-    val fileStatus2 = fs.getFileStatus(new Path("/pqr/lmn/jkl/testfile"))
+    val fileStatus2 = fs.getFileStatus(new Path(basePath + "/pqr/lmn/jkl/testfile"))
     !fileStatus2.isDir must be(isTrue)
   }
 
-  it should "be able to get locations for all blocks in a file" in {
-    val path = new Path("/home/Downloads/testBlockLocations")
-    val fsData = fs.create(path)
+  /* it should "be able to get locations for all blocks in a file" in {
+     val path = new Path("/home/Downloads/testBlockLocations")
+     val fsData = fs.create(path)
 
-    1 to 100000 foreach {
-      i =>
-        fsData.write("LINE NO: %d Content: Test data to create blocks\n".format(i).getBytes)
-    }
+     1 to 100000 foreach {
+       i =>
+         fsData.write("LINE NO: %d Content: Test data to create blocks\n".format(i).getBytes)
+     }
 
-    fsData.close()
+     fsData.close()
 
-    val status = fs.getFileStatus(path)
-    val locations = fs.getFileBlockLocations(status, 0, status.getLen)
+     val status = fs.getFileStatus(path)
+     val locations = fs.getFileBlockLocations(status, 0, status.getLen)
 
 
-    assert(locations === 250)
+     assert(locations === 250)
+   }*/
+
+  override def afterAll() = {
+    //remove the test directory
+    val rmDir = fs.delete(new Path(basePath),isRecursive = true)
+    println(rmDir)
   }
 }
