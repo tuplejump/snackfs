@@ -31,7 +31,7 @@ object SnackfsBuild extends Build {
       organization := "tj",
       version := "0.1-SNAPSHOT",
       scalaVersion := "2.9.3",
-
+      parallelExecution in Test := false,
       retrieveManaged := true,
 
       libraryDependencies ++= Seq("org.apache.hadoop" % "hadoop-core" % "1.0.4",

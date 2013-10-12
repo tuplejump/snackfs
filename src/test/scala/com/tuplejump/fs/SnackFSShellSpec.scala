@@ -22,13 +22,14 @@
  */
 package com.tuplejump.fs
 
-import org.scalatest.FlatSpec
+import org.scalatest.{BeforeAndAfterAll, FlatSpec}
 import org.scalatest.matchers.MustMatchers
 import java.io.{File, IOException}
 import org.apache.commons.io.IOUtils
 import scala.io.Source
+import java.util.Date
 
-class SnackFSShellSpec extends FlatSpec with MustMatchers {
+class SnackFSShellSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
   def executeAndGetOutput(command: Seq[String]): String = {
 
@@ -49,12 +50,16 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
   val isTrue = true
 
   val hadoopFSCommands = Seq("./hadoop", "fs")
-  val filesystem = "snackfs://localhost:9000/"
 
-  val testingDir = filesystem + "testFSShell/"
-  val projectHome = "/home/shiti/work/tj/snackfs/src/" //to be set
+  val timestamp = new Date().getTime
+  val basePath = "testFSShell" + timestamp
 
-  val listCommand = hadoopFSCommands ++ Seq("-lsr", filesystem)
+  val base = "snackfs://localhost:9000/test" + timestamp + "/"
+
+  val testingDir = base + "testFSShell/"
+  val projectHome = "/snackfs/src/" //to be set
+
+  val listCommand = hadoopFSCommands ++ Seq("-lsr", base)
 
   //mkdir
   it should "make a new directory" in {
@@ -94,7 +99,7 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
 
   //copyToLocal
   it should "copy a file from the filesystem using copyToLocal" in {
-    val destination = projectHome + "test/resources/TestSmall.txt"
+    val destination = projectHome + "test/resources/" + basePath + "/TestSmall.txt"
     val source = testingDir + "small.txt"
     val command = hadoopFSCommands ++ Seq("-copyToLocal", source, destination)
     executeAndGetOutput(command)
@@ -115,7 +120,7 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
 
   //get
   it should "copy a file from the filesystem using get" in {
-    val destination = projectHome + "test/resources/TestGetSmall.txt"
+    val destination = projectHome + "test/resources/" + basePath + "/TestGetSmall.txt"
     val source = testingDir + "small.txt"
     val command = hadoopFSCommands ++ Seq("-copyToLocal", source, destination)
     executeAndGetOutput(command)
@@ -137,24 +142,23 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
 
   //cp
   it should "copy all files from a directory into another" in {
-    val destination = filesystem + "testCpCommand/"
+    val destName = "testCpCommand"
+    val destination = base + destName + "/"
     val source = testingDir
     val command = hadoopFSCommands ++ Seq("-cp", source, destination)
     executeAndGetOutput(command)
-
     val listoutPut = executeAndGetOutput(listCommand)
-    listoutPut must include("/testCpCommand/small.txt")
-    listoutPut must include("/testCpCommand/vsmall.txt")
+    listoutPut must include("/" + destName + "/small.txt")
+    listoutPut must include("/" + destName + "/vsmall.txt")
   }
 
   //du
   it should "display aggregate length of files in a directory" in {
-    val command = hadoopFSCommands ++ Seq("-du", filesystem)
+    val command = hadoopFSCommands ++ Seq("-du", base)
     val output = executeAndGetOutput(command)
-    output must include(filesystem + "testFSShell")
-    output must include(filesystem + "testCpCommand")
+    output must include(base + "testFSShell")
+    output must include(base + "testCpCommand")
     output must startWith("[Found 2 items, 598419")
-    output must include(filesystem + "testFSShell, 598419")
   }
 
   it should "display aggregate length of file" in {
@@ -166,15 +170,15 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
 
   //dus
   it should "display summary of file lengths" in {
-    val command = hadoopFSCommands ++ Seq("-dus", filesystem)
+    val command = hadoopFSCommands ++ Seq("-dus", base)
     val output = executeAndGetOutput(command)
-    output must include(filesystem)
+    output must include("/test" + timestamp)
     output must include("1196838")
   }
 
   //ls
   it should "list children of directory" in {
-    val command = hadoopFSCommands ++ Seq("-ls", filesystem)
+    val command = hadoopFSCommands ++ Seq("-ls", base)
     val output = executeAndGetOutput(command)
     output must startWith("[Found 2 items,")
     output must include("/testFSShell")
@@ -209,7 +213,7 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
 
   it should "move a file" in {
     val source = testingDir + "small.txt"
-    val destination = filesystem + "small.txt"
+    val destination = base + "small.txt"
     val command = hadoopFSCommands ++ Seq("-mv", source, destination)
     executeAndGetOutput(command)
     val output = executeAndGetOutput(listCommand)
@@ -221,7 +225,7 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
   //put (reading from stdin also works)
   it should "copy a file into the filesystem using put" in {
     val source = projectHome + "test/resources/vsmall.txt"
-    val command = hadoopFSCommands ++ Seq("-put", source, filesystem)
+    val command = hadoopFSCommands ++ Seq("-put", source, base)
     executeAndGetOutput(command)
     val listOutPut = executeAndGetOutput(listCommand)
     listOutPut must include("/vsmall.txt")
@@ -230,7 +234,7 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
   it should "copy multiple files into the filesystem using put" in {
     val source1 = projectHome + "test/resources/small.txt"
     val source2 = projectHome + "test/resources/vsmall.txt"
-    val destination = filesystem + "testPutCommand/"
+    val destination = base + "testPutCommand/"
     val mkdirCommand = hadoopFSCommands ++ Seq("-mkdir", destination)
     executeAndGetOutput(mkdirCommand)
     val command = hadoopFSCommands ++ Seq("-put", source1, source2, destination)
@@ -242,30 +246,30 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
 
   //stat
   it should "display stat" in {
-    val command = hadoopFSCommands ++ Seq("-stat", filesystem)
+    val command = hadoopFSCommands ++ Seq("-stat", base)
     val output = executeAndGetOutput(command)
     output must not be "[]"
   }
 
   //tail
   it should "display last KB of a file" in {
-    val readCommand = hadoopFSCommands ++ Seq("-tail", filesystem + "/vsmall.txt")
+    val readCommand = hadoopFSCommands ++ Seq("-tail", base + "/vsmall.txt")
     val output = executeAndGetOutput(readCommand)
     output.length must not be 0
   }
 
   //touchz
   it should "create a file of zero length" in {
-    val command = hadoopFSCommands ++ Seq("-touchz", filesystem + "emptyFile.txt")
+    val command = hadoopFSCommands ++ Seq("-touchz", base + "emptyFile.txt")
     executeAndGetOutput(command)
     val listOutPut = executeAndGetOutput(listCommand)
     listOutPut must include("/emptyFile.txt")
   }
 
   it should "move multiple files" in {
-    val source1 = filesystem + "small.txt"
-    val source2 = filesystem + "vsmall.txt"
-    val destination = filesystem + "testMvCommand/"
+    val source1 = base + "small.txt"
+    val source2 = base + "vsmall.txt"
+    val destination = base + "testMvCommand/"
     val mkdirCommand = hadoopFSCommands ++ Seq("-mkdir", destination)
     executeAndGetOutput(mkdirCommand)
     val command = hadoopFSCommands ++ Seq("-mv", source1, source2, destination)
@@ -285,10 +289,25 @@ class SnackFSShellSpec extends FlatSpec with MustMatchers {
 
   //rmr
   it should "remove a directory and all its contents" in {
-    val command = hadoopFSCommands ++ Seq("-rmr", filesystem + "testPutCommand/")
+    val command = hadoopFSCommands ++ Seq("-rmr", base + "testPutCommand/")
     val output = executeAndGetOutput(command)
     output must startWith("[Deleted")
     output must include("/testPutCommand")
   }
 
+  override def afterAll() = {
+    //remove files generated in resources
+    val rmdirCommand = hadoopFSCommands ++ Seq("-rmr", projectHome + "test/resources/" + basePath)
+    executeAndGetOutput(rmdirCommand)
+
+    //remove the test directory
+    val rmTestCommand = hadoopFSCommands ++ Seq("-rmr", base)
+    executeAndGetOutput(rmTestCommand)
+  }
+
+  override def beforeAll() = {
+    //make directory in resources for test
+    val mkdirCommand = hadoopFSCommands ++ Seq("-mkdir", projectHome + "test/resources/" + basePath)
+    executeAndGetOutput(mkdirCommand)
+  }
 }
