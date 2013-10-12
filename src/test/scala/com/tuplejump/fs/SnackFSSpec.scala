@@ -240,7 +240,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     val path = new Path("/home/Downloads/testBlockLocations")
     val fsData = fs.create(path)
 
-    1 to 100000 foreach {
+    1L to (scala.math.pow(10, 6)).toLong foreach {
       i =>
         fsData.write("LINE NO: %d Content: Test data to create blocks\n".format(i).getBytes)
     }
@@ -251,6 +251,6 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     val locations = fs.getFileBlockLocations(status, 0, status.getLen)
 
 
-    assert(locations === 250)
+    assert(locations.size === 2)
   }
 }
