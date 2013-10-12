@@ -31,9 +31,14 @@ import java.util.Date
 
 class SnackFSShellSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
+  val hadhome = System.getenv("HADOOP_HOME")
+
+  assert(hadhome != null && !hadhome.isEmpty, "Must have hadoop, and must set HADOOP_HOME before running these tests")
+
+
   def executeAndGetOutput(command: Seq[String]): String = {
 
-    val hadoopHome = new File("/opt/dev/hadoop-1.0.4/bin") // to be set
+    val hadoopHome = new File(hadhome + File.separator + "bin")
 
     val builder = new ProcessBuilder(command: _*)
       .directory(hadoopHome)

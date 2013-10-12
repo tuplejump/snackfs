@@ -313,7 +313,6 @@ case class SnackFS() extends FileSystem {
 
   def getFileBlockLocations(path: Path, start: Long, len: Long): Array[BlockLocation] = {
     val blocks = Await.result(store.getBlockLocations(path), atMost)
-    println(blocks)
     val locs = blocks.filterNot(x => x._1.offset + x._1.length < start)
     val locsMap = locs.map {
       case (b, ips) =>
@@ -324,7 +323,6 @@ case class SnackFS() extends FileSystem {
         bl.setLength(b.length)
         bl
     }
-    println(locs)
     locsMap.foreach(println(_))
     locsMap.toArray
   }

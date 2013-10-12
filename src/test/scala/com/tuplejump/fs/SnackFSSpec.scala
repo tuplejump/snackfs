@@ -240,28 +240,30 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     !fileStatus2.isDir must be(isTrue)
   }
 
-  /* it should "be able to get locations for all blocks in a file" in {
-     val path = new Path("/home/Downloads/testBlockLocations")
-     val fsData = fs.create(path)
+  it should "be able to get locations for all blocks in a file" in {
+    val path = new Path("/home/Downloads/testBlockLocations")
+    val fsData = fs.create(path)
 
     1L to (scala.math.pow(10, 6)).toLong foreach {
       i =>
         fsData.write("LINE NO: %d Content: Test data to create blocks\n".format(i).getBytes)
     }
 
-     fsData.close()
+    fsData.close()
 
-     val status = fs.getFileStatus(path)
-     val locations = fs.getFileBlockLocations(status, 0, status.getLen)
-
+    val status = fs.getFileStatus(path)
+    val locations = fs.getFileBlockLocations(status, 0, status.getLen)
 
     assert(locations.size === 2)
+    locations.foreach {
+      block =>
+        block.getHosts.size must be(3)
+    }
   }
 
 
   override def afterAll() = {
     //remove the test directory
-    val rmDir = fs.delete(new Path(basePath),isRecursive = true)
-    println(rmDir)
+    fs.delete(new Path(basePath), isRecursive = true)
   }
 }
