@@ -143,6 +143,8 @@ case class SnackFS() extends FileSystem {
     fileDataStream
   }
 
+  override def getDefaultBlockSize: Long = customConfiguration.blockSize
+
   def append(path: Path, bufferSize: Int, progress: Progressable): FSDataOutputStream = {
     throw new IOException("Appending to existing file is not supported.")
   }

@@ -20,13 +20,15 @@ An easier alternative would be using [this project](https://github.com/pcmanus/c
 3. In bin/snackfs set JAVA_HOME
 4. It is possible to configure the file system by updating core-site.xml.
    The following properties can be added.
-   * fs.cassandra.host (default 127.0.0.1)
-   * fs.cassandra.port (default 9160)
-   * fs.consistencyLevel.write (default QUORUM)
-   * fs.consistencyLevel.read (default QUORUM)
-   * fs.keyspace (default snackfs)
-   * fs.replicationFactor (default 3)
-   * fs.replicationStrategy (default org.apache.cassandra.locator.SimpleStrategy)
+   * snackfs.cassandra.host (default 127.0.0.1)
+   * snackfs.cassandra.port (default 9160)
+   * snackfs.consistencyLevel.write (default QUORUM)
+   * snackfs.consistencyLevel.read (default QUORUM)
+   * snackfs.keyspace (default snackfs)
+   * snackfs.subblock.size (default 256 * 1024)
+   * snackfs.block.size (default 64 * 1024 * 1024 * 1024)
+   * snackfs.replicationFactor (default 3)
+   * snackfs.replicationStrategy (default org.apache.cassandra.locator.SimpleStrategy)
 5. Hadoop like fs commands can now be run from the extracted Snackfs directory. For example,
 
     [Snackfs(extracted)]$bin/snackfs fs -mkdir snackfs:///random

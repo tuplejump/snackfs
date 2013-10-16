@@ -7,7 +7,7 @@ import scala.concurrent.duration._
 
 case class SnackFSConfiguration(CassandraHost: String, CassandraPort: Int,
                                 readConsistencyLevel: ConsistencyLevel, writeConsistencyLevel: ConsistencyLevel,
-                                keySpace: String, subBlockSize: Long, atMost: FiniteDuration,
+                                keySpace: String, blockSize: Long, subBlockSize: Long, atMost: FiniteDuration,
                                 replicationFactor: Int, replicationStrategy: String) {
 }
 
@@ -19,34 +19,36 @@ object SnackFSConfiguration {
   private val PORT: Int = 9160
   private val AT_MOST: Long = 10 * 1000
   private val SUB_BLOCK_SIZE: Long = 256 * 1024
+  private val BLOCK_SIZE: Long = 64 * 1024 * 1024 * 1024
   private val REPLICATION_FACTOR: Int = 3
 
   def get(userConf: Configuration): SnackFSConfiguration = {
-    val cassandraHost = userConf.get("fs.cassandra.host")
+    val cassandraHost = userConf.get("snackfs.cassandra.host")
     val host = optIfNull(cassandraHost, HOST)
 
-    val port = userConf.getInt("fs.cassandra.port", PORT)
+    val port = userConf.getInt("snackfs.cassandra.port", PORT)
 
-    val consistencyLevelWrite = userConf.get("fs.consistencyLevel.write")
+    val consistencyLevelWrite = userConf.get("snackfs.consistencyLevel.write")
     val writeLevel = getConsistencyLevel(consistencyLevelWrite)
 
-    val consistencyLevelRead = userConf.get("fs.consistencyLevel.read")
+    val consistencyLevelRead = userConf.get("snackfs.consistencyLevel.read")
     val readLevel = getConsistencyLevel(consistencyLevelRead)
 
-    val keyspaceName: String = userConf.get("fs.keyspace")
+    val keyspaceName: String = userConf.get("snackfs.keyspace")
     val keyspace = optIfNull(keyspaceName, KEYSPACE)
 
-    val replicationFactor = userConf.getInt("fs.replicationFactor", REPLICATION_FACTOR)
+    val replicationFactor = userConf.getInt("snackfs.replicationFactor", REPLICATION_FACTOR)
 
-    val strategy: String = userConf.get("fs.replicationStrategy")
+    val strategy: String = userConf.get("snackfs.replicationStrategy")
     val replicationStrategy = optIfNull(strategy, REPLICATION_STRATEGY)
 
-    val subBlockSize = userConf.getLong("fs.subblock.size", SUB_BLOCK_SIZE)
+    val subBlockSize = userConf.getLong("snackfs.subblock.size", SUB_BLOCK_SIZE)
+    val blockSize = userConf.getLong("snackfs.block.size", BLOCK_SIZE)
 
-    val maxWaitDuration = userConf.getLong("fs.waitInterval", AT_MOST)
+    val maxWaitDuration = userConf.getLong("snackfs.waitInterval", AT_MOST)
     val waitDuration = FiniteDuration(maxWaitDuration, MILLISECONDS)
 
-    SnackFSConfiguration(host, port, readLevel, writeLevel, keyspace,
+    SnackFSConfiguration(host, port, readLevel, writeLevel, keyspace, blockSize,
       subBlockSize, waitDuration, replicationFactor, replicationStrategy)
   }
 
