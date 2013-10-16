@@ -36,10 +36,11 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
   val snackFSConfiguration = SnackFSConfiguration.get(configuration)
 
   val store = new ThriftStore(snackFSConfiguration)
+  store.init
 
   val replicationStrategy = classOf[SimpleStrategy].getCanonicalName
   Await.result(store.createKeyspace, snackFSConfiguration.atMost)
-  Await.result(store.init, snackFSConfiguration.atMost)
+  //Await.result(store.init, snackFSConfiguration.atMost)
 
   it should "fetch data which is equal to actual data" in {
     val pathURI = URI.create("outputStream.txt")

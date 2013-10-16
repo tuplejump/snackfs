@@ -37,6 +37,7 @@ object SnackfsBuild extends Build {
       libraryDependencies ++= Seq("org.apache.hadoop" % "hadoop-core" % "1.0.4",
         "org.apache.cassandra" % "cassandra-thrift" % "1.2.9",
         "org.apache.cassandra" % "cassandra-all" % "1.2.9",
+        "commons-pool" % "commons-pool" % "1.6",
         "org.scalatest" %% "scalatest" % "1.9.1" % "test",
         "org.apache.commons" % "commons-io" % "1.3.2" % "test",
         "com.novocode" % "junit-interface" % "0.10" % "test"
@@ -86,7 +87,8 @@ object SnackfsBuild extends Build {
     val cassandra = jarSource + "org.apache.cassandra/"
     val cassandraRelated = List(cassandra + "cassandra-all/cassandra-all-1.2.9.jar",
       cassandra + "cassandra-thrift/cassandra-thrift-1.2.9.jar",
-      jarSource + "org.apache.thrift/libthrift/libthrift-0.7.0.jar"
+      jarSource + "org.apache.thrift/libthrift/libthrift-0.7.0.jar",
+      jarSource + "commons-pool/commons-pool/commons-pool-1.6.jar"
     )
 
     val hadoopRelated = List(jarSource + "org.apache.hadoop/hadoop-core/hadoop-core-1.0.4.jar",

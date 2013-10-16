@@ -41,6 +41,7 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
   configuration.set("fs.keyspace", "STORE")
   val snackFSConfiguration = SnackFSConfiguration.get(configuration)
   val store = new ThriftStore(snackFSConfiguration)
+  store.init
 
   val timestamp = System.currentTimeMillis()
   val subBlocks = List(SubBlockMeta(UUID.randomUUID, 0, 128), SubBlockMeta(UUID.randomUUID, 128, 128))
@@ -60,10 +61,10 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
     assert(status.isInstanceOf[Keyspace])
   }
 
-  it should "set keyspace to STORE" in {
+  /* it should "set keyspace to STORE" in {
     val result = Await.result(store.init, snackFSConfiguration.atMost)
     assert(result.isInstanceOf[Unit])
-  }
+  }  */
 
   it should "create a INode" in {
     val response = store.storeINode(path, iNode)

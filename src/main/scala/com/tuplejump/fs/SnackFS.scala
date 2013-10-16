@@ -32,6 +32,8 @@ import org.apache.hadoop.fs._
 
 case class SnackFS() extends FileSystem {
 
+  println("INSTANTIATING SNACKFS!!!")
+
   private var systemURI: URI = null
   private var currentDirectory: Path = null
   private var subBlockSize: Long = 0L
@@ -54,7 +56,8 @@ case class SnackFS() extends FileSystem {
     store = new ThriftStore(customConfiguration)
     atMost = customConfiguration.atMost
     Await.ready(store.createKeyspace, atMost)
-    Await.ready(store.init, atMost)
+    //Await.ready(store.init, atMost)
+    store.init
 
     subBlockSize = customConfiguration.subBlockSize
   }

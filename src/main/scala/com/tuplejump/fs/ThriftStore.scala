@@ -41,11 +41,16 @@ import com.tuplejump.model.BlockMeta
 import com.tuplejump.model.GenericOpSuccess
 import org.apache.cassandra.dht.Murmur3Partitioner
 import org.apache.thrift.async.TAsyncClientManager
-import org.apache.thrift.protocol.TBinaryProtocol
+import org.apache.thrift.protocol.{TProtocolFactory, TBinaryProtocol}
 import org.apache.thrift.transport.TNonblockingSocket
 import scala.collection.mutable
+import org.apache.commons.pool.{ObjectPool, BasePoolableObjectFactory}
+import org.apache.commons.pool.impl.StackObjectPool
+
 
 class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
+
+  println("INSTANTIATING THRIFT STORE!!!")
 
   private val PATH_COLUMN: ByteBuffer = ByteBufferUtil.bytes("path")
   private val PARENT_PATH_COLUMN: ByteBuffer = ByteBufferUtil.bytes("parent_path")
@@ -59,13 +64,29 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
   private val partitioner = new Murmur3Partitioner()
 
-  private val clientManager = new TAsyncClientManager()
-  private val protocolFactory = new TBinaryProtocol.Factory()
-  private val transport = new TNonblockingSocket(configuration.CassandraHost, configuration.CassandraPort)
+  //private val client = new AsyncClient(protocolFactory, clientManager, transport)
 
-  private val client = new AsyncClient(protocolFactory, clientManager, transport)
+  private var clientPool: ObjectPool[ThriftClientAndSocket] = _
+
+  private def executeWithClient[T](f: AsyncClient => Future[T])(implicit tm: ClassManifest[T]): Future[T] = {
+    val c = clientPool.borrowObject()
+    val ret = f(c.client)
+
+    ret.onComplete {
+      res =>
+        clientPool.returnObject(c)
+    }
+    ret
+  }
 
   def createKeyspace: Future[Keyspace] = {
+
+    val clientManager = new TAsyncClientManager()
+    val protocolFactory = new TBinaryProtocol.Factory()
+    val clientFactory = new AsyncClient.Factory(clientManager, protocolFactory)
+
+    val transport = new TNonblockingSocket(configuration.CassandraHost, configuration.CassandraPort)
+    val client = clientFactory.getAsyncClient(transport)
 
     val ksDef = buildSchema
     val prom = promise[Keyspace]()
@@ -96,31 +117,32 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
     prom.future
   }
 
-  def init: Future[Unit] = {
-    val prom = promise[Unit]()
-    val setKeyspaceFuture = AsyncUtil.executeAsync[set_keyspace_call](client.set_keyspace(configuration.keySpace, _))
-    setKeyspaceFuture onSuccess {
-      case p => prom success p.getResult()
+  def init {
+    clientPool = new StackObjectPool[ThriftClientAndSocket](
+      new ClientPoolFactory(configuration.CassandraHost, configuration.CassandraPort, configuration.keySpace)) {
+      override def close() {
+        super.close()
+        getFactory.asInstanceOf[ClientPoolFactory].closePool
+      }
     }
-    setKeyspaceFuture onFailure {
-      case f => prom failure f
-    }
-    prom.future
   }
 
-  def dropKeyspace: Future[Unit] = {
-    val prom = promise[Unit]()
-    val dropFuture = AsyncUtil.executeAsync[system_drop_keyspace_call](client.system_drop_keyspace(configuration.keySpace, _))
-    dropFuture onSuccess {
-      case p => prom success p.getResult
-    }
-    dropFuture onFailure {
-      case f => prom failure f
-    }
-    prom.future
-  }
+  def dropKeyspace: Future[Unit] = executeWithClient({
+    client =>
+      val prom = promise[Unit]()
+      val dropFuture = AsyncUtil.executeAsync[system_drop_keyspace_call](client.system_drop_keyspace(configuration.keySpace, _))
+      dropFuture onSuccess {
+        case p => prom success p.getResult
+      }
+      dropFuture onFailure {
+        case f => prom failure f
+      }
+      prom.future
+  })
 
-  def disconnect() = clientManager.stop()
+  def disconnect() = {
+    clientPool.close()
+  }
 
   private def createINodeCF(cfName: String) = {
 
@@ -215,25 +237,25 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
     mutationMap
   }
 
-  def storeINode(path: Path, iNode: INode): Future[GenericOpSuccess] = {
-    val data: ByteBuffer = iNode.serialize
-    val timestamp = iNode.timestamp
-    val mutationMap: Map[ByteBuffer, java.util.Map[String, java.util.List[Mutation]]] = generateMutationforINode(data, path, timestamp)
-    val iNodeFuture = AsyncUtil.executeAsync[batch_mutate_call](client.batch_mutate(mutationMap, configuration.writeConsistencyLevel, _))
-    val prom = promise[GenericOpSuccess]()
-    iNodeFuture.onSuccess {
-      case p => {
-        prom success GenericOpSuccess()
+  def storeINode(path: Path, iNode: INode): Future[GenericOpSuccess] = executeWithClient({
+    client =>
+      val data: ByteBuffer = iNode.serialize
+      val timestamp = iNode.timestamp
+      val mutationMap: Map[ByteBuffer, java.util.Map[String, java.util.List[Mutation]]] = generateMutationforINode(data, path, timestamp)
+      val iNodeFuture = AsyncUtil.executeAsync[batch_mutate_call](client.batch_mutate(mutationMap, configuration.writeConsistencyLevel, _))
+      val prom = promise[GenericOpSuccess]()
+      iNodeFuture.onSuccess {
+        case p => {
+          prom success GenericOpSuccess()
+        }
       }
-    }
-    iNodeFuture.onFailure {
-      case f => prom failure f
-    }
-    prom.future
-  }
+      iNodeFuture.onFailure {
+        case f => prom failure f
+      }
+      prom.future
+  })
 
-  private def performGet(key: ByteBuffer, columnPath: ColumnPath): Future[ColumnOrSuperColumn] = {
-
+  private def performGet(client: AsyncClient, key: ByteBuffer, columnPath: ColumnPath): Future[ColumnOrSuperColumn] = {
     val prom = promise[ColumnOrSuperColumn]()
     val getFuture = AsyncUtil.executeAsync[get_call](client.get(key, columnPath, configuration.readConsistencyLevel, _))
     getFuture.onSuccess {
@@ -243,6 +265,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
           prom success res
         } catch {
           case e =>
+            println("ERROR HERE: " + e)
             prom failure e
         }
     }
@@ -252,104 +275,109 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
     prom.future
   }
 
-  def retrieveINode(path: Path): Future[INode] = {
-    val pathKey: ByteBuffer = getPathKey(path)
-    val inodeDataPath = new ColumnPath(INODE_COLUMN_FAMILY_NAME).setColumn(DATA_COLUMN)
+  def retrieveINode(path: Path): Future[INode] = executeWithClient({
+    client =>
+      val pathKey: ByteBuffer = getPathKey(path)
+      val inodeDataPath = new ColumnPath(INODE_COLUMN_FAMILY_NAME).setColumn(DATA_COLUMN)
 
-    val inodePromise = promise[INode]()
-    val pathInfo = performGet(pathKey, inodeDataPath)
-    pathInfo.onSuccess {
-      case p =>
-        inodePromise success INode.deserialize(ByteBufferUtil.inputStream(p.column.value), p.column.getTimestamp)
-    }
-    pathInfo.onFailure {
-      case f =>
-        inodePromise failure f
-    }
-    inodePromise.future
-  }
+      val inodePromise = promise[INode]()
+      val pathInfo = performGet(client, pathKey, inodeDataPath)
+      pathInfo.onSuccess {
+        case p =>
+          inodePromise success INode.deserialize(ByteBufferUtil.inputStream(p.column.value), p.column.getTimestamp)
+      }
+      pathInfo.onFailure {
+        case f =>
+          inodePromise failure f
+      }
+      inodePromise.future
+  })
 
-  def storeSubBlock(blockId: UUID, subBlockMeta: SubBlockMeta, data: ByteBuffer): Future[GenericOpSuccess] = {
-    val parentBlockId: ByteBuffer = ByteBufferUtil.bytes(blockId)
+  def storeSubBlock(blockId: UUID, subBlockMeta: SubBlockMeta, data: ByteBuffer): Future[GenericOpSuccess] = executeWithClient({
+    client =>
+      val parentBlockId: ByteBuffer = ByteBufferUtil.bytes(blockId)
 
-    val sblockParent = new ColumnParent(BLOCK_COLUMN_FAMILY_NAME)
+      val sblockParent = new ColumnParent(BLOCK_COLUMN_FAMILY_NAME)
 
-    val column = new Column()
-      .setName(ByteBufferUtil.bytes(subBlockMeta.id))
-      .setValue(data)
-      .setTimestamp(System.currentTimeMillis)
+      val column = new Column()
+        .setName(ByteBufferUtil.bytes(subBlockMeta.id))
+        .setValue(data)
+        .setTimestamp(System.currentTimeMillis)
 
-    val prom = promise[GenericOpSuccess]()
-    val subBlockFuture = AsyncUtil.executeAsync[insert_call](
-      client.insert(parentBlockId, sblockParent, column, configuration.writeConsistencyLevel, _))
+      val prom = promise[GenericOpSuccess]()
+      val subBlockFuture = AsyncUtil.executeAsync[insert_call](
+        client.insert(parentBlockId, sblockParent, column, configuration.writeConsistencyLevel, _))
 
-    subBlockFuture.onSuccess {
-      case p => prom success GenericOpSuccess()
-    }
-    subBlockFuture.onFailure {
-      case f => prom failure f
-    }
-    prom.future
-  }
+      subBlockFuture.onSuccess {
+        case p => prom success GenericOpSuccess()
+      }
+      subBlockFuture.onFailure {
+        case f => prom failure f
+      }
+      prom.future
+  })
 
-  def retrieveSubBlock(blockId: UUID, subBlockId: UUID, byteRangeStart: Long): Future[InputStream] = {
-    val blockIdBuffer: ByteBuffer = ByteBufferUtil.bytes(blockId)
-    val subBlockIdBuffer = ByteBufferUtil.bytes(subBlockId)
-    val subBlockFuture = performGet(blockIdBuffer, new ColumnPath(BLOCK_COLUMN_FAMILY_NAME).setColumn(subBlockIdBuffer))
-    val prom = promise[InputStream]()
-    subBlockFuture.onSuccess {
-      case p =>
-        val stream: InputStream = ByteBufferUtil.inputStream(p.column.value)
-        prom success stream
-    }
-    subBlockFuture.onFailure {
-      case f => prom failure f
-    }
-    prom.future
-  }
+  def retrieveSubBlock(blockId: UUID, subBlockId: UUID, byteRangeStart: Long): Future[InputStream] = executeWithClient({
+    client =>
+      val blockIdBuffer: ByteBuffer = ByteBufferUtil.bytes(blockId)
+      val subBlockIdBuffer = ByteBufferUtil.bytes(subBlockId)
+      val subBlockFuture = performGet(client, blockIdBuffer, new ColumnPath(BLOCK_COLUMN_FAMILY_NAME).setColumn(subBlockIdBuffer))
+      val prom = promise[InputStream]()
+      subBlockFuture.onSuccess {
+        case p =>
+          val stream: InputStream = ByteBufferUtil.inputStream(p.column.value)
+          prom success stream
+      }
+      subBlockFuture.onFailure {
+        case f => prom failure f
+      }
+      prom.future
+  })
 
   def retrieveBlock(blockMeta: BlockMeta): InputStream = {
     BlockInputStream(this, blockMeta, configuration.atMost)
   }
 
-  def deleteINode(path: Path): Future[GenericOpSuccess] = {
-    val pathKey = getPathKey(path)
-    val iNodeColumnPath = new ColumnPath(INODE_COLUMN_FAMILY_NAME)
-    val timestamp = System.currentTimeMillis
+  def deleteINode(path: Path): Future[GenericOpSuccess] = executeWithClient({
+    client =>
+      val pathKey = getPathKey(path)
+      val iNodeColumnPath = new ColumnPath(INODE_COLUMN_FAMILY_NAME)
+      val timestamp = System.currentTimeMillis
 
-    val result = promise[GenericOpSuccess]()
+      val result = promise[GenericOpSuccess]()
 
-    val deleteInodeFuture = AsyncUtil.executeAsync[remove_call](
-      client.remove(pathKey, iNodeColumnPath, timestamp, configuration.writeConsistencyLevel, _))
+      val deleteInodeFuture = AsyncUtil.executeAsync[remove_call](
+        client.remove(pathKey, iNodeColumnPath, timestamp, configuration.writeConsistencyLevel, _))
 
-    deleteInodeFuture.onSuccess {
-      case p => result success GenericOpSuccess()
-    }
-    deleteInodeFuture.onFailure {
-      case f => result failure f
-    }
-    result.future
-  }
-
-  def deleteBlocks(iNode: INode): Future[GenericOpSuccess] = {
-    val mutationMap = generateINodeMutationMap(iNode)
-
-    val result = promise[GenericOpSuccess]()
-
-    val deleteFuture = AsyncUtil.executeAsync[batch_mutate_call](
-      client.batch_mutate(mutationMap, configuration.writeConsistencyLevel, _))
-    deleteFuture.onSuccess {
-      case p => {
-        result success GenericOpSuccess()
+      deleteInodeFuture.onSuccess {
+        case p => result success GenericOpSuccess()
       }
-    }
-    deleteFuture.onFailure {
-      case f => {
-        result failure f
+      deleteInodeFuture.onFailure {
+        case f => result failure f
       }
-    }
-    result.future
-  }
+      result.future
+  })
+
+  def deleteBlocks(iNode: INode): Future[GenericOpSuccess] = executeWithClient({
+    client =>
+      val mutationMap = generateINodeMutationMap(iNode)
+
+      val result = promise[GenericOpSuccess]()
+
+      val deleteFuture = AsyncUtil.executeAsync[batch_mutate_call](
+        client.batch_mutate(mutationMap, configuration.writeConsistencyLevel, _))
+      deleteFuture.onSuccess {
+        case p => {
+          result success GenericOpSuccess()
+        }
+      }
+      deleteFuture.onFailure {
+        case f => {
+          result failure f
+        }
+      }
+      result.future
+  })
 
   private def generateINodeMutationMap(iNode: INode): Map[ByteBuffer, java.util.Map[String, java.util.List[Mutation]]] = {
     val timestamp = System.currentTimeMillis()
@@ -385,30 +413,31 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
     fetchPaths(indexExpr)
   }
 
-  private def fetchPaths(indexExpr: List[IndexExpression]): Future[Set[Path]] = {
-    val pathPredicate = new SlicePredicate().setColumn_names(List(PATH_COLUMN))
-    val iNodeParent = new ColumnParent(INODE_COLUMN_FAMILY_NAME)
+  private def fetchPaths(indexExpr: List[IndexExpression]): Future[Set[Path]] = executeWithClient({
+    client =>
+      val pathPredicate = new SlicePredicate().setColumn_names(List(PATH_COLUMN))
+      val iNodeParent = new ColumnParent(INODE_COLUMN_FAMILY_NAME)
 
-    val indexClause = new IndexClause(indexExpr, ByteBufferUtil.EMPTY_BYTE_BUFFER, 100000)
-    val rowFuture = AsyncUtil.executeAsync[get_indexed_slices_call](
-      client.get_indexed_slices(iNodeParent, indexClause, pathPredicate, configuration.readConsistencyLevel, _))
+      val indexClause = new IndexClause(indexExpr, ByteBufferUtil.EMPTY_BYTE_BUFFER, 100000)
+      val rowFuture = AsyncUtil.executeAsync[get_indexed_slices_call](
+        client.get_indexed_slices(iNodeParent, indexClause, pathPredicate, configuration.readConsistencyLevel, _))
 
-    val result = promise[Set[Path]]()
-    rowFuture.onSuccess {
-      case p => {
-        val paths = p.getResult.flatMap(keySlice =>
-          keySlice.getColumns.map(columnOrSuperColumn =>
-            new Path(ByteBufferUtil.string(columnOrSuperColumn.column.value)))
-        ).toSet
-        result success paths
+      val result = promise[Set[Path]]()
+      rowFuture.onSuccess {
+        case p => {
+          val paths = p.getResult.flatMap(keySlice =>
+            keySlice.getColumns.map(columnOrSuperColumn =>
+              new Path(ByteBufferUtil.string(columnOrSuperColumn.column.value)))
+          ).toSet
+          result success paths
+        }
       }
-    }
-    rowFuture.onFailure {
-      case f => result failure f
-    }
+      rowFuture.onFailure {
+        case f => result failure f
+      }
 
-    result.future
-  }
+      result.future
+  })
 
   private def indexExprForDeepFetch(startPath: String): List[IndexExpression] = {
     val lastChar = (startPath(startPath.length - 1) + 1).asInstanceOf[Char]
@@ -419,58 +448,94 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
   }
 
 
-  def getBlockLocations(path: Path): Future[Map[BlockMeta, List[String]]] = {
+  def getBlockLocations(path: Path): Future[Map[BlockMeta, List[String]]] = executeWithClient({
+    client =>
 
-    val result = promise[Map[BlockMeta, List[String]]]()
-    val inodeFuture = retrieveINode(path)
+      val result = promise[Map[BlockMeta, List[String]]]()
+      val inodeFuture = retrieveINode(path)
 
-    var response = Map.empty[BlockMeta, List[String]]
+      var response = Map.empty[BlockMeta, List[String]]
 
-    inodeFuture.onSuccess {
-      case inode =>
+      inodeFuture.onSuccess {
+        case inode =>
 
-        //Get the ring description from the server
-        val ringFuture = AsyncUtil.executeAsync[describe_ring_call](
-          client.describe_ring(configuration.keySpace, _)
-        )
-
-
-        ringFuture.onSuccess {
-          case r =>
-            val tf = partitioner.getTokenFactory
-            val ring = r.getResult.map(p => (p.getEndpoints, p.getStart_token.toLong, p.getEnd_token.toLong))
-
-            //For each block in the file, get the owner node
-            inode.blocks.foreach(b => {
-              val uuid: String = b.id.toString
-              val token = tf.fromByteArray(ByteBufferUtil.bytes(b.id))
-
-              val xr = ring.filter {
-                p =>
-                  if (p._2 < p._3) {
-                    p._2 <= token.token && p._3 >= token.token
-                  } else {
-                    (p._2 <= token.token && Long.MaxValue >= token.token) || (p._3 >= token.token && Long.MinValue <= token.token)
-                  }
-              }
+          //Get the ring description from the server
+          val ringFuture = AsyncUtil.executeAsync[describe_ring_call](
+            client.describe_ring(configuration.keySpace, _)
+          )
 
 
-              if (xr.length > 0) {
-                val endpoints: List[String] = xr.flatMap(_._1).toList
-                response += (b -> endpoints)
-              } else {
-                response += (b -> ring(0)._1.toList)
-              }
-            })
+          ringFuture.onSuccess {
+            case r =>
+              val tf = partitioner.getTokenFactory
+              val ring = r.getResult.map(p => (p.getEndpoints, p.getStart_token.toLong, p.getEnd_token.toLong))
 
-            result success response
-        }
+              //For each block in the file, get the owner node
+              inode.blocks.foreach(b => {
+                val uuid: String = b.id.toString
+                val token = tf.fromByteArray(ByteBufferUtil.bytes(b.id))
 
-        ringFuture.onFailure {
-          case f => result failure f
-        }
+                val xr = ring.filter {
+                  p =>
+                    if (p._2 < p._3) {
+                      p._2 <= token.token && p._3 >= token.token
+                    } else {
+                      (p._2 <= token.token && Long.MaxValue >= token.token) || (p._3 >= token.token && Long.MinValue <= token.token)
+                    }
+                }
+
+
+                if (xr.length > 0) {
+                  val endpoints: List[String] = xr.flatMap(_._1).toList
+                  response += (b -> endpoints)
+                } else {
+                  response += (b -> ring(0)._1.toList)
+                }
+              })
+
+              result success response
+          }
+
+          ringFuture.onFailure {
+            case f => result failure f
+          }
+      }
+
+      result.future
+  })
+}
+
+
+case class ThriftClientAndSocket(client: AsyncClient, socket: TNonblockingSocket)
+
+class ClientPoolFactory(host: String, port: Int, keyspace: String) extends BasePoolableObjectFactory[ThriftClientAndSocket] {
+
+  import scala.concurrent.duration._
+
+  private val clientManager = new TAsyncClientManager()
+  private val protocolFactory = new TBinaryProtocol.Factory()
+  private val clientFactory = new AsyncClient.Factory(clientManager, protocolFactory)
+
+  def makeObject(): ThriftClientAndSocket = {
+    val transport = new TNonblockingSocket(host, port)
+    val client = clientFactory.getAsyncClient(transport)
+    val x = Await.result(AsyncUtil.executeAsync[set_keyspace_call](client.set_keyspace(keyspace, _)), 10 seconds)
+    try {
+      x.getResult()
+      ThriftClientAndSocket(client, transport)
+    } catch {
+      case e =>
+        println(e)
+        throw e
     }
+  }
 
-    result.future
+  override def destroyObject(obj: ThriftClientAndSocket) {
+    obj.socket.close()
+    super.destroyObject(obj)
+  }
+
+  def closePool {
+    clientManager.stop()
   }
 }

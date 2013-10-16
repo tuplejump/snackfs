@@ -32,7 +32,7 @@ trait FileSystemStore {
 
   def createKeyspace: Future[Keyspace]
 
-  def init: Future[Unit]
+  def init: Unit
 
   def storeINode(path: Path, iNode: INode): Future[GenericOpSuccess]
 
