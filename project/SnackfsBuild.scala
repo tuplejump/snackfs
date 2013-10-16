@@ -16,6 +16,7 @@
  * limitations under the License.
  *
  */
+
 import sbt._
 import sbt.Keys._
 
@@ -29,7 +30,7 @@ object SnackfsBuild extends Build {
     settings = Project.defaultSettings ++ Seq(
       name := "snackfs",
       organization := "tj",
-      version := "0.1-SNAPSHOT",
+      version := "0.3-SNAPSHOT",
       scalaVersion := "2.9.3",
       parallelExecution in Test := false,
       retrieveManaged := true,
@@ -45,10 +46,10 @@ object SnackfsBuild extends Build {
     ) ++ Seq(distTask)
   )
 
-  def distTask = dist in Compile <<= (packageBin in Compile) map {
-    (f: File) =>
+  def distTask = dist in Compile <<= (packageBin in Compile, version in Compile, streams) map {
+    (f: File, v: String, s) =>
       val userHome = System.getProperty("user.home")
-      val ivyHome = userHome + "/.ivy2/cache/"        //should be updated to point to ivy cache if its not in home directory
+      val ivyHome = userHome + "/.ivy2/cache/" //should be updated to point to ivy cache if its not in home directory
 
       val destination = "SnackFS/"
       val lib = destination + "lib/"
@@ -77,8 +78,10 @@ object SnackfsBuild extends Build {
       val allFiles = jarFiles ++ configFiles ++ scriptFiles
       val fileSeq = for (f <- allFiles) yield (f, f.getPath)
 
-      IO.zip(fileSeq, new File("target/snackfs.tar.gz"))
+      val distZip: sbt.File = new File("target/snackfs-%s.tar.gz".format(v))
+      IO.zip(fileSeq, distZip)
       IO.delete(new File(destination))
+      s.log.info("SnackFS Distribution created at %s".format(distZip.getAbsolutePath))
   }
 
   def getLibraries: List[String] = {
