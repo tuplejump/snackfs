@@ -18,8 +18,8 @@ object SnackFSConfiguration {
   private val HOST = "127.0.0.1"
   private val PORT: Int = 9160
   private val AT_MOST: Long = 10 * 1000
-  private val SUB_BLOCK_SIZE: Long = 256 * 1024
-  private val BLOCK_SIZE: Long = 64 * 1024 * 1024 * 1024
+  private val SUB_BLOCK_SIZE: Long =  8 * 1024 * 1024 //8 MB
+  private val BLOCK_SIZE: Long = 128 * 1024 * 1024 //128MB
   private val REPLICATION_FACTOR: Int = 3
 
   def get(userConf: Configuration): SnackFSConfiguration = {

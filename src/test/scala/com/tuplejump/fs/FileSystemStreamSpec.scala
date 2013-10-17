@@ -67,7 +67,7 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
     val nioPath = FileSystems.getDefault.getPath("src/test/resources/vsmall.txt")
     val data = Files.readAllBytes(nioPath)
 
-    println("file size=" + data.length)
+    //println("file size=" + data.length)
     val pathURI = URI.create("vsmall.txt")
     val path = new Path(pathURI)
     val maxBlockSize = 500
@@ -77,9 +77,9 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
     outputStream.close()
 
     val inode = Await.result(store.retrieveINode(path), snackFSConfiguration.atMost)
-    println("blocks=" + inode.blocks.length)
+    ////println("blocks=" + inode.blocks.length)
     val minSize: Int = data.length / maxBlockSize
-    println(minSize)
+    ////println(minSize)
     assert(inode.blocks.length >= minSize)
     var fetchedData: Array[Byte] = new Array[Byte](data.length)
     var offset = 0
@@ -90,7 +90,7 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
       blockData.close()
       offset += block.length.asInstanceOf[Int]
     })
-    println("completed copy")
+    //println("completed copy")
     new String(fetchedData) must be(new String(data))
   }
 
@@ -100,7 +100,7 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
 
     val dataString = new java.lang.String(data)
 
-    println("file size=" + data.length)
+    //println("file size=" + data.length)
     val pathURI = URI.create("small.txt")
     val path = new Path(pathURI)
     val maxBlockSize: Int = 30000
@@ -110,9 +110,9 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
     outputStream.close()
 
     val inode = Await.result(store.retrieveINode(path), snackFSConfiguration.atMost)
-    println("blocks=" + inode.blocks.length)
+    //println("blocks=" + inode.blocks.length)
     val minSize: Int = data.length / maxBlockSize
-    println(minSize)
+    //println(minSize)
     assert(inode.blocks.length >= minSize)
 
     var fetchedData: Array[Byte] = Array[Byte]()
@@ -124,7 +124,7 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
       fetchedData = fetchedData ++ source
       offset += source.length
     })
-    println("completed copy")
+    //println("completed copy")
     val fetchedDataString = new String(fetchedData)
     fetchedData.length must be(data.length)
     fetchedDataString must be(dataString)
@@ -134,16 +134,16 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
     val nioPath = FileSystems.getDefault.getPath("src/test/resources/vsmall.txt")
     val data = Files.readAllBytes(nioPath)
 
-    println("file size=" + data.length)
+    //println("file size=" + data.length)
     val pathURI = URI.create("vsmall.txt")
     val path = new Path(pathURI)
 
     val inode = FileSystemInputStream(store, path)
     var inodeData = new Array[Byte](data.length)
-    println(inode.read(inodeData, 0, data.length))
+    inode.read(inodeData, 0, data.length)
     inode.close()
-    println("completed copy")
-    println(inodeData.length)
+    //println("completed copy")
+    //println(inodeData.length)
     new String(inodeData) must be(new String(data))
   }
 
@@ -151,16 +151,16 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
     val nioPath = FileSystems.getDefault.getPath("src/test/resources/small.txt")
     val data = Files.readAllBytes(nioPath)
 
-    println("file size=" + data.length)
+    //println("file size=" + data.length)
     val pathURI = URI.create("small.txt")
     val path = new Path(pathURI)
 
     val inode = FileSystemInputStream(store, path)
     var inodeData = new Array[Byte](data.length)
-    println(inode.read(inodeData, 0, data.length))
+    inode.read(inodeData, 0, data.length)
     inode.close()
-    println("completed copy")
-    println(inodeData.length)
+    //println("completed copy")
+    //println(inodeData.length)
     inodeData must be(data)
   }
 
@@ -168,7 +168,7 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
     val nioPath = FileSystems.getDefault.getPath("src/test/resources/vsmall.txt")
     val data = Files.readAllBytes(nioPath)
 
-    println("file size=" + data.length)
+    //println("file size=" + data.length)
     val pathURI = URI.create("vsmall.txt")
     val path = new Path(pathURI)
 
@@ -176,8 +176,8 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
     var inodeData = new Array[Byte](data.length)
     inode.readFully(0, inodeData)
     inode.close()
-    println("completed copy")
-    println(inodeData.length)
+    //println("completed copy")
+    //println(inodeData.length)
     inodeData.length must be(data.length)
     inodeData must be(data)
   }
@@ -186,7 +186,7 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
     val nioPath = FileSystems.getDefault.getPath("src/test/resources/vsmall.txt")
     val data = Files.readAllBytes(nioPath)
 
-    println("file size=" + data.length)
+    //println("file size=" + data.length)
     val pathURI = URI.create("vsmall.txt")
     val path = new Path(pathURI)
 
@@ -194,8 +194,8 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
     var inodeData = IOUtils.toByteArray(inode)
     inode.close()
 
-    println("completed copy")
-    println(inodeData.length)
+    //println("completed copy")
+    //println(inodeData.length)
     inodeData.length must be(data.length)
     inodeData must be(data)
   }

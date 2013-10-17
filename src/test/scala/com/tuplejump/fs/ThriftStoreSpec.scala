@@ -126,7 +126,7 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
     Await.ready(store.storeINode(path3, iNode), snackFSConfiguration.atMost)
 
     val result = Await.result(store.fetchSubPaths(path1, isDeepFetch = true), snackFSConfiguration.atMost)
-    println(result.toString())
+    //println(result.toString())
 
     result.size must be(2)
   }
@@ -143,7 +143,7 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
     Await.ready(store.storeINode(path3, iNode), snackFSConfiguration.atMost)
 
     val result = Await.result(store.fetchSubPaths(path1, isDeepFetch = false), snackFSConfiguration.atMost)
-    println(result.toString())
+    //println(result.toString())
 
     result.size must be(1)
   }

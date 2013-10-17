@@ -50,8 +50,6 @@ import org.apache.commons.pool.impl.StackObjectPool
 
 class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
-  println("INSTANTIATING THRIFT STORE!!!")
-
   private val PATH_COLUMN: ByteBuffer = ByteBufferUtil.bytes("path")
   private val PARENT_PATH_COLUMN: ByteBuffer = ByteBufferUtil.bytes("parent_path")
   private val SENTINEL_COLUMN: ByteBuffer = ByteBufferUtil.bytes("sentinel")
@@ -63,8 +61,6 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
   private val BLOCK_COLUMN_FAMILY_NAME = "sblock"
 
   private val partitioner = new Murmur3Partitioner()
-
-  //private val client = new AsyncClient(protocolFactory, clientManager, transport)
 
   private var clientPool: ObjectPool[ThriftClientAndSocket] = _
 
@@ -265,7 +261,6 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
           prom success res
         } catch {
           case e =>
-            println("ERROR HERE: " + e)
             prom failure e
         }
     }

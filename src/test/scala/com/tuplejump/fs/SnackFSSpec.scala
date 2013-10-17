@@ -25,6 +25,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import java.io.{FileNotFoundException, IOException}
 import java.util.Date
+import org.apache.commons.lang3.RandomStringUtils
 
 class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
@@ -187,7 +188,6 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   }
 
   it should "rename a file" in {
-
     val filePath1 = new Path(basePath + "/tmp2/testRename")
     val fileData1 = fs.create(filePath1)
     fileData1.write("This is a test to check rename functionality".getBytes)
@@ -209,7 +209,6 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   }
 
   it should "rename a directory" in {
-
     val dirPath1 = new Path(basePath + "/abc/user")
     fs.mkdirs(dirPath1)
     val dirPath2 = new Path(basePath + "/abc/local")
@@ -244,12 +243,20 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     val path = new Path("/home/Downloads/testBlockLocations")
     val fsData = fs.create(path)
 
-    1L to (scala.math.pow(10, 6)).toLong foreach {
+    println("Generating test data, this may take a few minutes, please wait . . .")
+
+    val fileSize = 254 * 1024 * 1024
+    val iters = fileSize / 20000
+    val strToWrite: String = RandomStringUtils.randomAscii(20000) + "\n"
+
+    1L to iters foreach {
       i =>
-        fsData.write("LINE NO: %d Content: Test data to create blocks\n".format(i).getBytes)
+        fsData.write(strToWrite.getBytes())
     }
 
     fsData.close()
+
+    println("Data generated!")
 
     val status = fs.getFileStatus(path)
     val locations = fs.getFileBlockLocations(status, 0, status.getLen)

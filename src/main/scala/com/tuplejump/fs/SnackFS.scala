@@ -32,8 +32,6 @@ import org.apache.hadoop.fs._
 
 case class SnackFS() extends FileSystem {
 
-  println("INSTANTIATING SNACKFS!!!")
-
   private var systemURI: URI = null
   private var currentDirectory: Path = null
   private var subBlockSize: Long = 0L
@@ -143,7 +141,9 @@ case class SnackFS() extends FileSystem {
     fileDataStream
   }
 
-  override def getDefaultBlockSize: Long = customConfiguration.blockSize
+  override def getDefaultBlockSize: Long = {
+    customConfiguration.blockSize
+  }
 
   def append(path: Path, bufferSize: Int, progress: Progressable): FSDataOutputStream = {
     throw new IOException("Appending to existing file is not supported.")
@@ -328,7 +328,6 @@ case class SnackFS() extends FileSystem {
         bl.setLength(b.length)
         bl
     }
-    locsMap.foreach(println(_))
     locsMap.toArray
   }
 

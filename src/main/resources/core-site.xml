@@ -7,12 +7,20 @@
          <value>com.tuplejump.fs.SnackFS</value>
      </property>
      <property>
-	<name>fs.keyspace</name>
-	<value>snackfs</value>
+	    <name>snackfs.keyspace</name>
+	    <value>snackfs</value>
      </property>
      <property>
-        <name>fs.local.subblock.size</name>
-        <value>262144</value>
+        <name>snackfs.subblock.size</name>
+        <value>8388608</value>
      </property>
+     <property>
+         <name>snackfs.block.size</name>
+         <value>134217728</value>
+     </property>
+    <property>
+        <name>fs.default.name</name>
+        <value>snackfs:///</value>
+    </property>
 </configuration>
 

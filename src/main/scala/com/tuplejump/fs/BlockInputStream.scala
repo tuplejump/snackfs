@@ -34,6 +34,7 @@ BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, atMost: FiniteDur
   private var targetSubBlockSize = 0L
   private var targetSubBlockOffset = 0L
 
+
   private def findSubBlock(targetPosition: Long): InputStream = {
     val subBlockLengthTotals = blockMeta.subBlocks.scanLeft(0L)(_ + _.length).tail
     val subBlockIndex = subBlockLengthTotals.indexWhere(p => targetPosition < p)
