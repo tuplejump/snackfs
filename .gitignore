@@ -1,0 +1,10 @@
+.idea/
+.idea_modules/
+build/
+lib_managed/
+project/project/
+project/target/
+target/
+fs_test/
+**/*~
+

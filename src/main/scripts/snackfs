@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+
+BASE=`dirname "${BASH_SOURCE-$0}"`/..
+
+CONF=conf
+CONF_DIR=${CONF_DIR:-$BASE/$CONF}
+
+if [ -z $JAVA_HOME ]; then
+    echo JAVA_HOME is not set, trying to determine it 
+    JAVA_HOME=`realpath $(dirname $(realpath $(which java)))/..`
+    JAVA_HOME_SET=true
+fi
+
+if [ $JAVA_HOME_SET ]; then
+    echo Java found at $JAVA_HOME
+fi
+
+if [ -z $JAVA_HOME ]; then
+    echo You should install Java and set JAVA_HOME
+    exit
+fi    
+
+# if no args specified, show usage
+if [ $# = 0 ]; then
+  echo "Usage: snackfs COMMAND"
+  echo "where COMMAND is:"
+  echo "  fs                   run a generic filesystem user client"
+  exit 1
+fi
+
+# get arguments
+COMMAND=$1
+shift
+
+JAVA=$JAVA_HOME/bin/java
+JAVA_HEAP_MAX=-Xmx1000m
+
+CLASSPATH="${CONF_DIR}"
+CLASSPATH=${CLASSPATH}:$JAVA_HOME/lib/tools.jar
+
+# add libs to CLASSPATH
+for f in $BASE/lib/*.jar; do
+  CLASSPATH=${CLASSPATH}:$f;
+done
+
+if [ "$COMMAND" = "fs" ] ; then
+  CLASS=org.apache.hadoop.fs.FsShell
+else exit 1
+fi
+
+OPTS=""
+exec "$JAVA" -Dproc_$COMMAND $JAVA_HEAP_MAX $OPTS -classpath "$CLASSPATH" $CLASS "$@"
+
+

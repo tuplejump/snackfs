@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+
+<configuration>
+     <property>
+         <name>fs.snackfs.impl</name>
+         <value>com.tuplejump.fs.SnackFS</value>
+     </property>
+     <property>
+	    <name>snackfs.keyspace</name>
+	    <value>snackfs</value>
+     </property>
+     <property>
+        <name>snackfs.subblock.size</name>
+        <value>8388608</value>
+     </property>
+     <property>
+         <name>snackfs.block.size</name>
+         <value>134217728</value>
+     </property>
+    <property>
+        <name>fs.default.name</name>
+        <value>snackfs:///</value>
+    </property>
+</configuration>
+

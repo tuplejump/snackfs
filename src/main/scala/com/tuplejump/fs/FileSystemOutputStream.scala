@@ -1,20 +1,37 @@
-package tj.fs
+/*
+ * Licensed to Tuplejump Software Pvt. Ltd. under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  Tuplejump Software Pvt. Ltd. licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+package com.tuplejump.fs
 
 import java.io.{IOException, OutputStream}
 import org.apache.hadoop.fs.Path
 import org.apache.cassandra.utils.UUIDGen
 import java.util.UUID
 import java.nio.ByteBuffer
-import tj.model.{SubBlockMeta, BlockMeta, FileType, INode}
 import org.apache.hadoop.fs.permission.FsPermission
 import scala.concurrent.Await
 import scala.concurrent.duration._
+import com.tuplejump.model.{SubBlockMeta, FileType, INode, BlockMeta}
 
 case class FileSystemOutputStream(store: FileSystemStore, path: Path,
                                   blockSize: Long, subBlockSize: Long,
-                                  bufferSize: Long) extends OutputStream {
+                                  bufferSize: Long, atMost: FiniteDuration) extends OutputStream {
 
-  private val AT_MOST: FiniteDuration = 10 seconds
   private var isClosed: Boolean = false
 
   private var blockId: UUID = UUIDGen.getTimeUUID
@@ -60,7 +77,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
   private def endSubBlock() = {
     if (position != 0) {
       val subBlockMeta = SubBlockMeta(UUIDGen.getTimeUUID, subBlockOffset, position)
-      Await.ready(store.storeSubBlock(blockId, subBlockMeta, ByteBuffer.wrap(outBuffer)), AT_MOST)
+      Await.ready(store.storeSubBlock(blockId, subBlockMeta, ByteBuffer.wrap(outBuffer)), atMost)
       subBlockOffset += position
       bytesWrittenToBlock += position
       subBlocksMeta = subBlocksMeta :+ subBlockMeta
@@ -77,7 +94,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
     val permissions = FsPermission.getDefault
     val timestamp = System.currentTimeMillis()
     val iNode = INode(user, user, permissions, FileType.FILE, blocksMeta, timestamp)
-    Await.ready(store.storeINode(path, iNode), AT_MOST)
+    Await.ready(store.storeINode(path, iNode), atMost)
     blockOffset += subBlockLengths.asInstanceOf[Int]
     subBlocksMeta = List()
     subBlockOffset = 0
