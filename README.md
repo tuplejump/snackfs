@@ -25,8 +25,8 @@ An easier alternative would be using [this project](https://github.com/pcmanus/c
    * snackfs.consistencyLevel.write (default QUORUM)
    * snackfs.consistencyLevel.read (default QUORUM)
    * snackfs.keyspace (default snackfs)
-   * snackfs.subblock.size (default 256 * 1024)
-   * snackfs.block.size (default 64 * 1024 * 1024 * 1024)
+   * snackfs.subblock.size (default 8 MB (8 * 1024 * 1024))
+   * snackfs.block.size (default 128 MB (128 * 1024 * 1024))
    * snackfs.replicationFactor (default 3)
    * snackfs.replicationStrategy (default org.apache.cassandra.locator.SimpleStrategy)
 5. Hadoop like fs commands can now be run from the extracted Snackfs directory. For example,
