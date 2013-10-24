@@ -17,8 +17,7 @@ An easier alternative would be using [this project](https://github.com/pcmanus/c
    to read, write and execute the script "snackfs" located in bin directory
 
 2. start Cassandra v1.2.9 (default setup for snackfs assumes its a cluster with 3 nodes)
-3. In bin/snackfs set JAVA_HOME
-4. It is possible to configure the file system by updating core-site.xml.
+3. It is possible to configure the file system by updating core-site.xml.
    The following properties can be added.
    * snackfs.cassandra.host (default 127.0.0.1)
    * snackfs.cassandra.port (default 9160)
@@ -29,7 +28,7 @@ An easier alternative would be using [this project](https://github.com/pcmanus/c
    * snackfs.block.size (default 128 MB (128 * 1024 * 1024))
    * snackfs.replicationFactor (default 3)
    * snackfs.replicationStrategy (default org.apache.cassandra.locator.SimpleStrategy)
-5. Hadoop like fs commands can now be run from the extracted Snackfs directory. For example,
+4. Hadoop like fs commands can now be run from the extracted Snackfs directory. For example,
 
     [Snackfs(extracted)]$bin/snackfs fs -mkdir snackfs:///random
 
