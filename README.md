@@ -41,7 +41,7 @@ An easier alternative would be using [this project](https://github.com/pcmanus/c
 
     [snackfs]$ sbt package
 
-   This will result in a "snackfs_2.9.3-0.1-SNAPSHOT.jar" file in the "target" directory of "snackfs".
+   This will result in a "snackfs_2.9.3-0.1-SNAPSHOT.jar" file in the "target/scala-2.9.3" directory of "snackfs".
    Copy the jar to 'hadoop-1.0.4/lib'.
 3. Copy all the jars in snackfs/lib_managed and scala-library-2.9.3.jar
    (located at '~/.ivy2/cache/org.scala-lang/scala-library/jars') to 'hadoop-1.0.4/lib'.

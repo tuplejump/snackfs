@@ -42,7 +42,8 @@ object SnackfsBuild extends Build {
         "org.scalatest" %% "scalatest" % "1.9.1" % "test",
         "org.apache.commons" % "commons-io" % "1.3.2" % "test",
         "com.novocode" % "junit-interface" % "0.10" % "test",
-        "org.apache.commons" % "commons-lang3" % "3.1" % "test"
+        "org.apache.commons" % "commons-lang3" % "3.1" % "test",
+        "com.twitter" % "util-logging_2.9.2" % "6.7.0"
       )
     ) ++ Seq(distTask)
   )
