@@ -20,9 +20,10 @@
 package com.tuplejump.model
 
 import org.apache.hadoop.fs.permission.FsPermission
-import java.io.{DataInputStream, InputStream, DataOutputStream, ByteArrayOutputStream}
+import java.io._
 import java.nio.ByteBuffer
 import java.util.UUID
+import com.twitter.logging.Logger
 
 object FileType extends Enumeration {
   val DIRECTORY, FILE = Value
@@ -31,12 +32,15 @@ object FileType extends Enumeration {
 case class INode(user: String, group: String, permission: FsPermission,
                  fileType: FileType.Value, blocks: Seq[BlockMeta], timestamp: Long) {
 
+  private val log = Logger.get(getClass)
+
   def isDirectory: Boolean = this.fileType == FileType.DIRECTORY
 
   def isFile: Boolean = this.fileType == FileType.FILE
 
   def serialize: ByteBuffer = {
 
+    log.debug("serializing iNode")
     // Write INode Header
     val byteStream: ByteArrayOutputStream = new ByteArrayOutputStream
     val outputStream: DataOutputStream = new DataOutputStream(byteStream)
@@ -49,6 +53,7 @@ case class INode(user: String, group: String, permission: FsPermission,
     outputStream.writeByte(fileType.id)
     if (isFile) {
 
+      log.debug("serializing data for file iNode")
       //Write Blocks
       outputStream.writeInt(blocks.length)
       blocks.foreach(b => {
@@ -74,6 +79,8 @@ case class INode(user: String, group: String, permission: FsPermission,
 
 object INode {
   def deserialize(inputStream: InputStream, timestamp: Long): INode = {
+    val log = Logger.get(getClass)
+
     var result: INode = null
     if (inputStream != null) {
       val dataInputStream: DataInputStream = new DataInputStream(inputStream)
@@ -92,9 +99,11 @@ object INode {
 
       fType match {
         case FileType.DIRECTORY => {
+          log.debug("deserializing inode directory")
           result = INode(new String(userBuffer), new String(groupBuffer), perms, fType, null, timestamp)
         }
         case FileType.FILE => {
+          log.debug("deserializing data for file")
           val blockLength = dataInputStream.readInt
           var fileBlocks: Seq[BlockMeta] = Nil
           val blockRange = 0 until blockLength
@@ -120,7 +129,11 @@ object INode {
           })
           result = INode(new String(userBuffer), new String(groupBuffer), perms, fType, fileBlocks, timestamp)
         }
-        case _ => throw new IllegalArgumentException("Cannot deserialize INode.")
+        case _ => {
+          val ex = new IllegalArgumentException("Cannot deserialize INode.")
+          log.error(ex, "Invalid data cannot deserailize")
+          throw ex
+        }
       }
     }
     result

@@ -303,12 +303,12 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
       val pathInfo = performGet(client, pathKey, inodeDataPath)
       pathInfo.onSuccess {
         case p =>
-          log.debug("retrieved Inode for path %s", path.toUri.toString)
+          log.debug("retrieved Inode for path %s", path)
           inodePromise success INode.deserialize(ByteBufferUtil.inputStream(p.column.value), p.column.getTimestamp)
       }
       pathInfo.onFailure {
         case f =>
-          log.error(f, "failed to retrieve Inode for path %s", path.toUri.toString)
+          log.error(f, "failed to retrieve Inode for path %s", path)
           inodePromise failure f
       }
       inodePromise.future
@@ -380,12 +380,12 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
       deleteInodeFuture.onSuccess {
         case p =>
-          log.debug("deleted INode with path %s", path.toUri.toString)
+          log.debug("deleted INode with path %s", path)
           result success GenericOpSuccess()
       }
       deleteInodeFuture.onFailure {
         case f =>
-          log.error(f, "failed to delete INode with path %s", path.toUri.toString)
+          log.error(f, "failed to delete INode with path %s", path)
           result failure f
       }
       result.future
@@ -445,7 +445,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
     indexExpr = indexExpr ++ List(sentinelIndexExpr, startPathIndexExpr)
 
-    log.debug("fetching subPaths for %s, %s ", path.toUri.toString, if (isDeepFetch) "recursively" else "non-recursively")
+    log.debug("fetching subPaths for %s, %s ", path, if (isDeepFetch) "recursively" else "non-recursively")
     fetchPaths(indexExpr)
   }
 
@@ -497,7 +497,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
       inodeFuture.onSuccess {
         case inode =>
-          log.debug("found iNode for %s, getting block locations", path.toUri.toString)
+          log.debug("found iNode for %s, getting block locations", path)
           //Get the ring description from the server
           val ringFuture = AsyncUtil.executeAsync[describe_ring_call](
             client.describe_ring(configuration.keySpace, _)
@@ -531,7 +531,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
                   response += (b -> ring(0)._1.toList)
                 }
               })
-              log.debug("found block locations for iNode %s", path.toUri.toString)
+              log.debug("found block locations for iNode %s", path)
               result success response
           }
 
@@ -544,7 +544,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
       inodeFuture.onFailure {
         case e =>
-          log.error(e, "iNode for %s not found", path.toUri.toString)
+          log.error(e, "iNode for %s not found", path)
           result failure e
       }
 

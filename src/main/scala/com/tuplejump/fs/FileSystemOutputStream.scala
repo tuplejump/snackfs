@@ -57,7 +57,11 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
       log.error(ex, "Failed to write as stream is closed")
       throw ex
     }
-    //TODO pending implementation
+    outBuffer = outBuffer ++ Array(p1.toByte)
+    position += 1
+    if (position == subBlockSize) {
+      flush()
+    }
   }
 
   override def write(buf: Array[Byte], offset: Int, length: Int) = {
@@ -102,7 +106,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
     val permissions = FsPermission.getDefault
     val timestamp = System.currentTimeMillis()
     val iNode = INode(user, user, permissions, FileType.FILE, blocksMeta, timestamp)
-    log.debug("storing/updating block details for INode at %s", path.toUri.toString)
+    log.debug("storing/updating block details for INode at %s", path)
     Await.ready(store.storeINode(path, iNode), atMost)
     blockOffset += subBlockLengths.asInstanceOf[Int]
     subBlocksMeta = List()
@@ -117,6 +121,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
       log.error(ex, "Failed to write as stream is closed")
       throw ex
     }
+    log.debug("flushing data at %s", position)
     endSubBlock()
     if (bytesWrittenToBlock >= blockSize || isClosing) {
       endBlock()
