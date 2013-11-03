@@ -23,8 +23,11 @@ import java.io.{IOException, InputStream}
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import java.util.Date
+import com.twitter.logging.Logger
 
 case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSInputStream {
+
+  private val log = Logger.get(getClass)
 
   private val INODE = Await.result(store.retrieveINode(path), 10 seconds)
   private val FILE_LENGTH: Long = INODE.blocks.map(_.length).sum
@@ -41,7 +44,9 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
 
   def seek(target: Long) = {
     if (target > FILE_LENGTH) {
-      throw new IOException("Cannot seek after EOF")
+      val ex = new IOException("Cannot seek after EOF")
+      log.error(ex, "EOF reached earlier")
+      throw ex
     }
     currentPosition = target
     currentBlockSize = -1
@@ -55,13 +60,16 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
   private def findBlock(targetPosition: Long): InputStream = {
     val blockIndex = INODE.blocks.indexWhere(b => b.offset + b.length > targetPosition)
     if (blockIndex == -1) {
-      throw new IOException("Impossible situation: could not find position " + targetPosition)
+      val ex = new IOException("Impossible situation: could not find position " + targetPosition)
+      log.error(ex, "Position %s could not be located", targetPosition.toString)
+      throw ex
     }
     val block = INODE.blocks(blockIndex)
     currentBlockSize = block.length
     currentBlockOffset = block.offset
 
     val offset = targetPosition - currentBlockOffset
+    log.debug("fetching block at position %s", targetPosition.toString)
     val bis = store.retrieveBlock(block)
     bis.skip(offset)
     bis
@@ -69,7 +77,9 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
 
   def read(): Int = {
     if (isClosed) {
-      throw new IOException("Stream closed")
+      val ex = new IOException("Stream closed")
+      log.error(ex, "Failed to read as stream is closed")
+      throw ex
     }
     var result: Int = -1
 
@@ -78,8 +88,10 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
         if (blockStream != null) {
           blockStream.close()
         }
+        log.debug("fetching next block")
         blockStream = findBlock(currentPosition)
       }
+      log.debug("reading from block")
       result = blockStream.read
       if (result >= 0) {
         currentPosition += 1
@@ -92,13 +104,19 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
 
   override def read(buf: Array[Byte], off: Int, len: Int): Int = {
     if (isClosed) {
-      throw new IOException("Stream closed")
+      val ex = new IOException("Stream closed")
+      log.error(ex, "Failed to read as stream is closed")
+      throw ex
     }
     if (buf == null) {
-      throw new NullPointerException
+      val ex = new NullPointerException
+      log.error(ex, "Failed to read as output buffer is null")
+      throw ex
     }
     if ((off < 0) || (len < 0) || (len > buf.length - off)) {
-      throw new IndexOutOfBoundsException
+      val ex = new IndexOutOfBoundsException
+      log.error(ex, "Failed to read as one of offset,length or output buffer length is invalid")
+      throw ex
     }
 
     var result: Int = 0
@@ -109,9 +127,11 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
           if (blockStream != null) {
             blockStream.close()
           }
+          log.debug("fetching next block")
           blockStream = findBlock(currentPosition)
         }
         val realLen: Int = math.min(len - result, currentBlockSize + 1).asInstanceOf[Int]
+        log.debug("reading from block")
         var readSize = blockStream.read(buf, off + result, realLen)
         result += readSize
         currentPosition += readSize
@@ -126,6 +146,7 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
   override def close() = {
     if (!isClosed) {
       if (blockStream != null) {
+        log.debug("closing stream")
         blockStream.close()
       }
       super.close()

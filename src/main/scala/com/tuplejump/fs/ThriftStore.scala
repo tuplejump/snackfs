@@ -41,15 +41,16 @@ import com.tuplejump.model.BlockMeta
 import com.tuplejump.model.GenericOpSuccess
 import org.apache.cassandra.dht.Murmur3Partitioner
 import org.apache.thrift.async.TAsyncClientManager
-import org.apache.thrift.protocol.{TProtocolFactory, TBinaryProtocol}
+import org.apache.thrift.protocol.TBinaryProtocol
 import org.apache.thrift.transport.TNonblockingSocket
-import scala.collection.mutable
-import org.apache.commons.pool.{ObjectPool, BasePoolableObjectFactory}
+import org.apache.commons.pool.ObjectPool
 import org.apache.commons.pool.impl.StackObjectPool
 
+import com.twitter.logging.Logger
 
 class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
+  private val log = Logger.get(getClass)
   private val PATH_COLUMN: ByteBuffer = ByteBufferUtil.bytes("path")
   private val PARENT_PATH_COLUMN: ByteBuffer = ByteBufferUtil.bytes("parent_path")
   private val SENTINEL_COLUMN: ByteBuffer = ByteBufferUtil.bytes("sentinel")
@@ -65,12 +66,13 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
   private var clientPool: ObjectPool[ThriftClientAndSocket] = _
 
   private def executeWithClient[T](f: AsyncClient => Future[T])(implicit tm: ClassManifest[T]): Future[T] = {
-    val c = clientPool.borrowObject()
-    val ret = f(c.client)
+    log.debug("Fetching client from pool")
+    val thriftClientAndSocket = clientPool.borrowObject()
+    val ret = f(thriftClientAndSocket.client)
 
     ret.onComplete {
       res =>
-        clientPool.returnObject(c)
+        clientPool.returnObject(thriftClientAndSocket)
     }
     ret
   }
@@ -94,18 +96,25 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
         val mayBeKsDef: Try[KsDef] = Try(p.getResult)
 
         if (mayBeKsDef.isSuccess) {
+          log.debug("Using existing keyspace %s", ksDef.getName)
           prom success new Keyspace(ksDef.getName)
         } else {
-
+          log.debug("Creating new keyspace %s", ksDef.getName)
           val response = AsyncUtil.executeAsync[system_add_keyspace_call](
             client.system_add_keyspace(ksDef, _))
 
           response.onSuccess {
-            case r => prom success new Keyspace(r.getResult)
+            case r => {
+              log.debug("Created keyspace %s", ksDef.getName)
+              prom success new Keyspace(r.getResult)
+            }
           }
 
           response.onFailure {
-            case f => prom failure f
+            case f => {
+              log.error(f, "Failed to create keyspace %s", f.getMessage)
+              prom failure f
+            }
           }
         }
       }
@@ -114,11 +123,12 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
   }
 
   def init {
+    log.debug("initializing thrift store with configuration %s", configuration.toString)
     clientPool = new StackObjectPool[ThriftClientAndSocket](
       new ClientPoolFactory(configuration.CassandraHost, configuration.CassandraPort, configuration.keySpace)) {
       override def close() {
         super.close()
-        getFactory.asInstanceOf[ClientPoolFactory].closePool
+        getFactory.asInstanceOf[ClientPoolFactory].closePool()
       }
     }
   }
@@ -128,10 +138,16 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
       val prom = promise[Unit]()
       val dropFuture = AsyncUtil.executeAsync[system_drop_keyspace_call](client.system_drop_keyspace(configuration.keySpace, _))
       dropFuture onSuccess {
-        case p => prom success p.getResult
+        case p => {
+          log.debug("deleted keyspace %s", configuration.keySpace)
+          prom success p.getResult
+        }
       }
       dropFuture onFailure {
-        case f => prom failure f
+        case f => {
+          log.error(f, "failed to delete keyspace %s", configuration.keySpace)
+          prom failure f
+        }
       }
       prom.future
   })
@@ -242,11 +258,15 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
       val prom = promise[GenericOpSuccess]()
       iNodeFuture.onSuccess {
         case p => {
+          log.debug("stored INode %s", iNode.toString)
           prom success GenericOpSuccess()
         }
       }
       iNodeFuture.onFailure {
-        case f => prom failure f
+        case f => {
+          log.error(f, "failed to store INode %s", iNode.toString)
+          prom failure f
+        }
       }
       prom.future
   })
@@ -258,14 +278,18 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
       case p =>
         try {
           val res = p.getResult
+          log.debug("fetch INode/subblock data")
           prom success res
         } catch {
-          case e =>
+          case e: Exception =>
+            log.error(e, "failed to get INode/subblock data")
             prom failure e
         }
     }
     getFuture.onFailure {
-      case f => prom failure f
+      case f =>
+        log.error(f, "failed to get INode/subblock data")
+        prom failure f
     }
     prom.future
   }
@@ -279,10 +303,12 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
       val pathInfo = performGet(client, pathKey, inodeDataPath)
       pathInfo.onSuccess {
         case p =>
+          log.debug("retrieved Inode for path %s", path)
           inodePromise success INode.deserialize(ByteBufferUtil.inputStream(p.column.value), p.column.getTimestamp)
       }
       pathInfo.onFailure {
         case f =>
+          log.error(f, "failed to retrieve Inode for path %s", path)
           inodePromise failure f
       }
       inodePromise.future
@@ -304,10 +330,14 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
         client.insert(parentBlockId, sblockParent, column, configuration.writeConsistencyLevel, _))
 
       subBlockFuture.onSuccess {
-        case p => prom success GenericOpSuccess()
+        case p =>
+          log.debug("stored subBlock %s for block with id %s", subBlockMeta.toString, blockId.toString)
+          prom success GenericOpSuccess()
       }
       subBlockFuture.onFailure {
-        case f => prom failure f
+        case f =>
+          log.debug(f, " failed to store subBlock %s for block with id %s", subBlockMeta.toString, blockId.toString)
+          prom failure f
       }
       prom.future
   })
@@ -321,15 +351,19 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
       subBlockFuture.onSuccess {
         case p =>
           val stream: InputStream = ByteBufferUtil.inputStream(p.column.value)
+          log.debug("retrieved subBlock with id %s and block id %s", subBlockId.toString, blockId.toString)
           prom success stream
       }
       subBlockFuture.onFailure {
-        case f => prom failure f
+        case f =>
+          log.debug("failed to retrieve subBlock with id %s and block id %s", subBlockId.toString, blockId.toString)
+          prom failure f
       }
       prom.future
   })
 
   def retrieveBlock(blockMeta: BlockMeta): InputStream = {
+    log.debug("retrieve Block %s", blockMeta.toString)
     BlockInputStream(this, blockMeta, configuration.atMost)
   }
 
@@ -345,10 +379,14 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
         client.remove(pathKey, iNodeColumnPath, timestamp, configuration.writeConsistencyLevel, _))
 
       deleteInodeFuture.onSuccess {
-        case p => result success GenericOpSuccess()
+        case p =>
+          log.debug("deleted INode with path %s", path)
+          result success GenericOpSuccess()
       }
       deleteInodeFuture.onFailure {
-        case f => result failure f
+        case f =>
+          log.error(f, "failed to delete INode with path %s", path)
+          result failure f
       }
       result.future
   })
@@ -363,11 +401,13 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
         client.batch_mutate(mutationMap, configuration.writeConsistencyLevel, _))
       deleteFuture.onSuccess {
         case p => {
+          log.debug("deleted blocks for INode %s", iNode.toString)
           result success GenericOpSuccess()
         }
       }
       deleteFuture.onFailure {
         case f => {
+          log.error(f, "failed to delete blocks for INode %s", iNode.toString)
           result failure f
         }
       }
@@ -405,6 +445,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
     indexExpr = indexExpr ++ List(sentinelIndexExpr, startPathIndexExpr)
 
+    log.debug("fetching subPaths for %s, %s ", path, if (isDeepFetch) "recursively" else "non-recursively")
     fetchPaths(indexExpr)
   }
 
@@ -424,11 +465,14 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
             keySlice.getColumns.map(columnOrSuperColumn =>
               new Path(ByteBufferUtil.string(columnOrSuperColumn.column.value)))
           ).toSet
+          log.debug("fetched subpaths for %s", indexExpr.toString())
           result success paths
         }
       }
       rowFuture.onFailure {
-        case f => result failure f
+        case f =>
+          log.error(f, "failed to fetch subpaths for  %s", indexExpr.toString())
+          result failure f
       }
 
       result.future
@@ -453,7 +497,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
       inodeFuture.onSuccess {
         case inode =>
-
+          log.debug("found iNode for %s, getting block locations", path)
           //Get the ring description from the server
           val ringFuture = AsyncUtil.executeAsync[describe_ring_call](
             client.describe_ring(configuration.keySpace, _)
@@ -462,12 +506,12 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
           ringFuture.onSuccess {
             case r =>
+              log.debug("fetched ring details for keyspace %", configuration.keySpace)
               val tf = partitioner.getTokenFactory
               val ring = r.getResult.map(p => (p.getEndpoints, p.getStart_token.toLong, p.getEnd_token.toLong))
 
               //For each block in the file, get the owner node
               inode.blocks.foreach(b => {
-                val uuid: String = b.id.toString
                 val token = tf.fromByteArray(ByteBufferUtil.bytes(b.id))
 
                 val xr = ring.filter {
@@ -487,50 +531,23 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
                   response += (b -> ring(0)._1.toList)
                 }
               })
-
+              log.debug("found block locations for iNode %s", path)
               result success response
           }
 
           ringFuture.onFailure {
-            case f => result failure f
+            case f =>
+              log.error(f, "failed to get ring details for keyspace %s", configuration.keySpace)
+              result failure f
           }
+      }
+
+      inodeFuture.onFailure {
+        case e =>
+          log.error(e, "iNode for %s not found", path)
+          result failure e
       }
 
       result.future
   })
-}
-
-
-case class ThriftClientAndSocket(client: AsyncClient, socket: TNonblockingSocket)
-
-class ClientPoolFactory(host: String, port: Int, keyspace: String) extends BasePoolableObjectFactory[ThriftClientAndSocket] {
-
-  import scala.concurrent.duration._
-
-  private val clientManager = new TAsyncClientManager()
-  private val protocolFactory = new TBinaryProtocol.Factory()
-  private val clientFactory = new AsyncClient.Factory(clientManager, protocolFactory)
-
-  def makeObject(): ThriftClientAndSocket = {
-    val transport = new TNonblockingSocket(host, port)
-    val client = clientFactory.getAsyncClient(transport)
-    val x = Await.result(AsyncUtil.executeAsync[set_keyspace_call](client.set_keyspace(keyspace, _)), 10 seconds)
-    try {
-      x.getResult()
-      ThriftClientAndSocket(client, transport)
-    } catch {
-      case e =>
-        println(e)
-        throw e
-    }
-  }
-
-  override def destroyObject(obj: ThriftClientAndSocket) {
-    obj.socket.close()
-    super.destroyObject(obj)
-  }
-
-  def closePool {
-    clientManager.stop()
-  }
 }

@@ -22,9 +22,12 @@ import java.io.{IOException, InputStream}
 import scala.concurrent.Await
 import scala.concurrent.duration._
 import com.tuplejump.model.BlockMeta
+import com.twitter.logging.Logger
 
 case class
 BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, atMost: FiniteDuration) extends InputStream {
+  private val log = Logger.get(getClass)
+
   private val LENGTH = blockMeta.length
 
   private var isClosed: Boolean = false
@@ -39,7 +42,9 @@ BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, atMost: FiniteDur
     val subBlockLengthTotals = blockMeta.subBlocks.scanLeft(0L)(_ + _.length).tail
     val subBlockIndex = subBlockLengthTotals.indexWhere(p => targetPosition < p)
     if (subBlockIndex == -1) {
-      throw new IOException("Impossible situation: could not find position " + targetPosition)
+      val ex = new IOException("Impossible situation: could not find position " + targetPosition)
+      log.error(ex, "Position %s could not be located", targetPosition.toString)
+      throw ex
     }
     var offset = targetPosition
     if (subBlockIndex != 0) {
@@ -48,13 +53,15 @@ BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, atMost: FiniteDur
     val subBlock = blockMeta.subBlocks(subBlockIndex)
     targetSubBlockSize = subBlock.length
     targetSubBlockOffset = subBlock.offset
-
+    log.debug("fetching subBlock for block %s and position %s", blockMeta.id.toString, targetPosition.toString)
     Await.result(store.retrieveSubBlock(blockMeta.id, subBlock.id, offset), atMost)
   }
 
   def read: Int = {
     if (isClosed) {
-      throw new IOException("Stream closed")
+      val ex = new IOException("Stream closed")
+      log.error(ex,"Failed to read as stream is closed")
+      throw ex
     }
     var result = -1
     if (currentPosition <= LENGTH - 1) {
@@ -62,8 +69,10 @@ BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, atMost: FiniteDur
         if (inputStream != null) {
           inputStream.close()
         }
+        log.debug("fetching next subblock")
         inputStream = findSubBlock(currentPosition)
       }
+      log.debug("reading from subblock")
       result = inputStream.read()
       currentPosition += 1
     }
@@ -72,13 +81,19 @@ BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, atMost: FiniteDur
 
   override def read(buf: Array[Byte], off: Int, len: Int): Int = {
     if (isClosed) {
-      throw new IOException("Stream closed")
+      val ex = new IOException("Stream closed")
+      log.error(ex,"Failed to read as stream is closed")
+      throw ex
     }
     if (buf == null) {
-      throw new NullPointerException
+      val ex = new NullPointerException
+      log.error(ex,"Failed to read as output buffer is null")
+      throw ex
     }
     if ((off < 0) || (len < 0) || (len > buf.length - off)) {
-      throw new IndexOutOfBoundsException
+      val ex = new IndexOutOfBoundsException
+      log.error(ex,"Failed to read as one of offset,length or output buffer length is invalid")
+      throw ex
     }
     var result = 0
     if (len > 0) {
@@ -87,10 +102,13 @@ BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, atMost: FiniteDur
           if (inputStream != null) {
             inputStream.close()
           }
+          log.debug("fetching next subblock")
           inputStream = findSubBlock(currentPosition)
         }
         val remaining = len - result
         val size = math.min(remaining, targetSubBlockSize)
+
+        log.debug("reading from subblock")
         val readSize = inputStream.read(buf, off + result, size.asInstanceOf[Int])
         result += readSize
         currentPosition += readSize
@@ -105,6 +123,7 @@ BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, atMost: FiniteDur
   override def close() = {
     if (!isClosed) {
       if (inputStream != null) {
+        log.debug("closing stream")
         inputStream.close()
       }
       super.close()
