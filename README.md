@@ -10,7 +10,7 @@ An easier alternative would be using [this project](https://github.com/pcmanus/c
 
 1. Execute the following command in the project directory
 
-    [snackfs]$ sbt dist
+        [snackfs]$ sbt dist
 
    This will result in a "snackfs.tar.gz" file in the "target" directory of "snackfs".
    Extract "snackfs.tar.gz" at desired location and grant user permissions
@@ -30,7 +30,7 @@ An easier alternative would be using [this project](https://github.com/pcmanus/c
    * snackfs.replicationStrategy (default org.apache.cassandra.locator.SimpleStrategy)
 4. Hadoop like fs commands can now be run from the extracted Snackfs directory. For example,
 
-    [Snackfs(extracted)]$bin/snackfs fs -mkdir snackfs:///random
+        [Snackfs(extracted)]$bin/snackfs fs -mkdir snackfs:///random
 
 
 #####To build the project,
@@ -39,7 +39,7 @@ An easier alternative would be using [this project](https://github.com/pcmanus/c
    The base directory will be referred as 'hadoop-1.0.4' in the following steps.
 2. Execute the following commands in the snackfs project directory.
 
-    [snackfs]$ sbt package
+        [snackfs]$ sbt package
 
    This will result in a "snackfs_2.9.3-0.1-SNAPSHOT.jar" file in the "target/scala-2.9.3" directory of "snackfs".
    Copy the jar to 'hadoop-1.0.4/lib'.
@@ -49,6 +49,21 @@ An easier alternative would be using [this project](https://github.com/pcmanus/c
 5. start Cassandra v1.2.9 (default setup for snackfs assumes its a cluster with 3 nodes)
 6. Hadoop fs commands can now be run using snackfs. For example,
 
-    [hadoop-1.0.4]$ bin/hadoop fs -mkdir snackfs:///random
+        [hadoop-1.0.4]$ bin/hadoop fs -mkdir snackfs:///random
 
+
+#####To enable logging,
+Add a LoggerFactory like the following one to SnackFS
+
+    val config = new LoggerFactory("", Option(Level.ALL), List(FileHandler("logs")), true)
+    config()
+
+The arguments for LoggerFactory are
+
+1. node - Name of the logging node. ("") is the top-level logger.
+2. level - Log level for this node. Leaving it None implies the parent logger's level.
+3. handlers - Where to send log messages.
+4. useParents - indicates if log messages are passed up to parent nodes.To stop at this node level, set it to false
+
+Additional logging configuration details can be found [here](https://github.com/twitter/util/tree/master/util-logging#configuring)
 

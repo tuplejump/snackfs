@@ -300,6 +300,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
       val inodeDataPath = new ColumnPath(INODE_COLUMN_FAMILY_NAME).setColumn(DATA_COLUMN)
 
       val inodePromise = promise[INode]()
+      log.debug("fetching Inode for path %s",path)
       val pathInfo = performGet(client, pathKey, inodeDataPath)
       pathInfo.onSuccess {
         case p =>
@@ -346,6 +347,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
     client =>
       val blockIdBuffer: ByteBuffer = ByteBufferUtil.bytes(blockId)
       val subBlockIdBuffer = ByteBufferUtil.bytes(subBlockId)
+      log.debug("fetching subBlock for path %s",subBlockId.toString)
       val subBlockFuture = performGet(client, blockIdBuffer, new ColumnPath(BLOCK_COLUMN_FAMILY_NAME).setColumn(subBlockIdBuffer))
       val prom = promise[InputStream]()
       subBlockFuture.onSuccess {
@@ -506,7 +508,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
           ringFuture.onSuccess {
             case r =>
-              log.debug("fetched ring details for keyspace %", configuration.keySpace)
+              log.debug("fetched ring details for keyspace %s", configuration.keySpace)
               val tf = partitioner.getTokenFactory
               val ring = r.getResult.map(p => (p.getEndpoints, p.getStart_token.toLong, p.getEnd_token.toLong))
 
