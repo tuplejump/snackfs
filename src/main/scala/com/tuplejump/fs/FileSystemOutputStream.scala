@@ -33,7 +33,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
                                   blockSize: Long, subBlockSize: Long,
                                   bufferSize: Long, atMost: FiniteDuration) extends OutputStream {
 
-  private val log = Logger.get(getClass)
+  private val log = Logger.get("com.tuplejump.fs.FileSystemOutputStream")
 
   private var isClosed: Boolean = false
 

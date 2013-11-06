@@ -16,9 +16,12 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.model
+package com.tuplejump.util
 
-import org.apache.cassandra.thrift.Cassandra.AsyncClient
-import org.apache.thrift.transport.TNonblockingSocket
+import com.twitter.logging.{ConsoleHandler, Level, LoggerFactory}
 
-case class ThriftClientAndSocket(client: AsyncClient, socket: TNonblockingSocket)
+object LogConfiguration {
+
+  val config = new LoggerFactory("", Option(Level.INFO), List(ConsoleHandler()), true)
+
+}

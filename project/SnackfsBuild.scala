@@ -113,7 +113,12 @@ object SnackfsBuild extends Build {
       jarSource + "org.slf4j/slf4j-api/slf4j-api-1.7.2.jar"
     )
 
-    val requiredJars = cassandraRelated ++ hadoopRelated ++ otherHadoopDeps
+    val logger = jarSource + "com.twitter/"
+    val loggingRelated = List(logger + "util-app_2.9.2/util-app_2.9.2-6.7.0.jar",
+      logger + "util-core_2.9.2/util-core_2.9.2-6.7.0.jar",
+      logger + "util-logging_2.9.2/util-logging_2.9.2-6.7.0.jar")
+
+    val requiredJars = cassandraRelated ++ hadoopRelated ++ otherHadoopDeps ++ loggingRelated
     requiredJars
   }
 

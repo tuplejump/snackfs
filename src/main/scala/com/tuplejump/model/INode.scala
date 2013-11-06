@@ -32,7 +32,7 @@ object FileType extends Enumeration {
 case class INode(user: String, group: String, permission: FsPermission,
                  fileType: FileType.Value, blocks: Seq[BlockMeta], timestamp: Long) {
 
-  private val log = Logger.get(getClass)
+  private val log = Logger.get("com.tuplejump.model.INode")
 
   def isDirectory: Boolean = this.fileType == FileType.DIRECTORY
 

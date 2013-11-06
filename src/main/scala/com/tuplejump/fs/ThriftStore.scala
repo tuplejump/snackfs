@@ -34,7 +34,7 @@ import org.apache.hadoop.fs.Path
 import java.math.BigInteger
 import java.util.UUID
 import java.io.InputStream
-import com.tuplejump.util.AsyncUtil
+import com.tuplejump.util.{LogConfiguration, AsyncUtil}
 import com.tuplejump.model._
 import com.tuplejump.model.SubBlockMeta
 import com.tuplejump.model.BlockMeta
@@ -50,7 +50,9 @@ import com.twitter.logging.Logger
 
 class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
-  private val log = Logger.get(getClass)
+  LogConfiguration.config()
+
+  private val log = Logger.get("com.tuplejump.fs.ThriftStore")
   private val PATH_COLUMN: ByteBuffer = ByteBufferUtil.bytes("path")
   private val PARENT_PATH_COLUMN: ByteBuffer = ByteBufferUtil.bytes("parent_path")
   private val SENTINEL_COLUMN: ByteBuffer = ByteBufferUtil.bytes("sentinel")
@@ -300,7 +302,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
       val inodeDataPath = new ColumnPath(INODE_COLUMN_FAMILY_NAME).setColumn(DATA_COLUMN)
 
       val inodePromise = promise[INode]()
-      log.debug("fetching Inode for path %s",path)
+      log.debug("fetching Inode for path %s", path)
       val pathInfo = performGet(client, pathKey, inodeDataPath)
       pathInfo.onSuccess {
         case p =>
@@ -347,7 +349,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
     client =>
       val blockIdBuffer: ByteBuffer = ByteBufferUtil.bytes(blockId)
       val subBlockIdBuffer = ByteBufferUtil.bytes(subBlockId)
-      log.debug("fetching subBlock for path %s",subBlockId.toString)
+      log.debug("fetching subBlock for path %s", subBlockId.toString)
       val subBlockFuture = performGet(client, blockIdBuffer, new ColumnPath(BLOCK_COLUMN_FAMILY_NAME).setColumn(subBlockIdBuffer))
       val prom = promise[InputStream]()
       subBlockFuture.onSuccess {
@@ -447,7 +449,15 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
     indexExpr = indexExpr ++ List(sentinelIndexExpr, startPathIndexExpr)
 
-    log.debug("fetching subPaths for %s, %s ", path, if (isDeepFetch) "recursively" else "non-recursively")
+    def recursionStrategy: String = {
+      if (isDeepFetch) {
+        "recursively"
+      } else {
+        "non-recursively"
+      }
+    }
+
+    log.debug("fetching subPaths for %s, %s ", path, recursionStrategy)
     fetchPaths(indexExpr)
   }
 

@@ -52,11 +52,10 @@ An easier alternative would be using [this project](https://github.com/pcmanus/c
         [hadoop-1.0.4]$ bin/hadoop fs -mkdir snackfs:///random
 
 
-#####To enable logging,
-Add a LoggerFactory like the following one to SnackFS
+#####To configure logging,
+If you want your logs in a File, update LogConfiguration.config like below
 
     val config = new LoggerFactory("", Option(Level.ALL), List(FileHandler("logs")), true)
-    config()
 
 The arguments for LoggerFactory are
 

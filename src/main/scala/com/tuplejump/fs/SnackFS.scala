@@ -33,7 +33,7 @@ import com.twitter.logging.Logger
 
 case class SnackFS() extends FileSystem {
 
-  private val log = Logger.get(getClass)
+  private val log = Logger.get("com.tuplejump.fs.SnackFS")
 
   private var systemURI: URI = null
   private var currentDirectory: Path = null
@@ -60,6 +60,9 @@ case class SnackFS() extends FileSystem {
     atMost = customConfiguration.atMost
     Await.ready(store.createKeyspace, atMost)
     store.init
+
+    log.debug("creating base directory")
+    mkdirs(new Path("/"))
 
     subBlockSize = customConfiguration.subBlockSize
   }
