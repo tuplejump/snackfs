@@ -18,10 +18,10 @@
  */
 package com.tuplejump.util
 
-import com.twitter.logging.{ConsoleHandler, Level, LoggerFactory}
+import com.twitter.logging.{FileHandler, Level, LoggerFactory}
 
 object LogConfiguration {
 
-  val config = new LoggerFactory("", Option(Level.INFO), List(ConsoleHandler()), true)
+  val config = new LoggerFactory("", Option(Level.DEBUG), List(FileHandler("logs")), true)
 
 }

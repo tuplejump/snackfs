@@ -51,4 +51,8 @@ trait FileSystemStore {
   def fetchSubPaths(path: Path, isDeepFetch: Boolean): Future[Set[Path]]
 
   def getBlockLocations(path: Path): Future[Map[BlockMeta, List[String]]]
+
+  def acquireFileLock(path:Path,processId:UUID):Future[Boolean]
+
+  def releaseFileLock(path:Path):Future[Boolean]
 }
