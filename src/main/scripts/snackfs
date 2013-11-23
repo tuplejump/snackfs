@@ -44,7 +44,7 @@ for f in $BASE/lib/*.jar; do
 done
 
 if [ "$COMMAND" = "fs" ] ; then
-  CLASS=org.apache.hadoop.fs.FsShell
+  CLASS=org.apache.hadoop.fs.SnackFSShell
 else exit 1
 fi
 

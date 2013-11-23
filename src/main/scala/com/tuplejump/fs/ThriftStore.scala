@@ -236,9 +236,6 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
   private def getPathKey(path: Path): ByteBuffer = {
     val pathBytes: ByteBuffer = ByteBufferUtil.bytes(path.toUri.getPath)
     val pathBytesAsInt: BigInteger = FBUtilities.hashToBigInteger(pathBytes)
-    log.debug("pathInt: %s", pathBytesAsInt)
-    log.debug("pathIntString: %s", pathBytesAsInt.toString(16))
-    log.debug("pathBuffer: %s", ByteBufferUtil.bytes(pathBytesAsInt.toString(16)).toString)
     ByteBufferUtil.bytes(pathBytesAsInt.toString(16))
   }
 
