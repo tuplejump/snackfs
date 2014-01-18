@@ -131,7 +131,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
       new ClientPoolFactory(configuration.CassandraHost, configuration.CassandraPort, configuration.keySpace)) {
       override def close() {
         super.close()
-        getFactory.asInstanceOf[ClientPoolFactory].closePool()
+        getFactory.asInstanceOf[ClientPoolFactory].closePool
       }
     }
   }

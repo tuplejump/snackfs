@@ -22,6 +22,8 @@ import sbt.Keys._
 
 object SnackfsBuild extends Build {
 
+  lazy val cas_version = "1.2.12"
+
   lazy val dist = TaskKey[Unit]("dist", "Generates project distribution")
 
   lazy val snackfs = Project(
@@ -35,9 +37,9 @@ object SnackfsBuild extends Build {
       parallelExecution in Test := false,
       retrieveManaged := true,
 
-      libraryDependencies ++= Seq("org.apache.hadoop" % "hadoop-core" % "1.0.4",
-        "org.apache.cassandra" % "cassandra-thrift" % "1.2.9",
-        "org.apache.cassandra" % "cassandra-all" % "1.2.9",
+      libraryDependencies ++= Seq("org.apache.hadoop" % "hadoop-client" % "1.0.4",
+        "org.apache.cassandra" % "cassandra-thrift" % cas_version,
+        "org.apache.cassandra" % "cassandra-all" % cas_version,
         "commons-pool" % "commons-pool" % "1.6",
         "org.scalatest" %% "scalatest" % "1.9.1" % "test",
         "org.apache.commons" % "commons-io" % "1.3.2" % "test",
@@ -90,13 +92,13 @@ object SnackfsBuild extends Build {
     val jarSource = "lib_managed/jars/"
 
     val cassandra = jarSource + "org.apache.cassandra/"
-    val cassandraRelated = List(cassandra + "cassandra-all/cassandra-all-1.2.9.jar",
-      cassandra + "cassandra-thrift/cassandra-thrift-1.2.9.jar",
+    val cassandraRelated = List(cassandra + "cassandra-all/cassandra-all-"+cas_version+".jar",
+      cassandra + "cassandra-thrift/cassandra-thrift-"+cas_version+".jar",
       jarSource + "org.apache.thrift/libthrift/libthrift-0.7.0.jar",
       jarSource + "commons-pool/commons-pool/commons-pool-1.6.jar"
     )
 
-    val hadoopRelated = List(jarSource + "org.apache.hadoop/hadoop-core/hadoop-core-1.0.4.jar",
+    val hadoopRelated = List(jarSource + "org.apache.hadoop/hadoop-client/hadoop-client-1.0.4.jar",
       jarSource + "commons-cli/commons-cli/commons-cli-1.2.jar",
       jarSource + "commons-configuration/commons-configuration/commons-configuration-1.6.jar",
       jarSource + "commons-lang/commons-lang/commons-lang-2.6.jar",
