@@ -33,7 +33,7 @@ import com.twitter.logging.Logger
 
 class ClientPoolFactory(host: String, port: Int, keyspace: String) extends BasePoolableObjectFactory[ThriftClientAndSocket] {
 
-  private val log = Logger.get("com.tuplejump.model.ClientPoolFactory")
+  private val log = Logger.get("com.tuplejump.snackfs.model.ClientPoolFactory")
 
   private val clientManager = new TAsyncClientManager()
   private val protocolFactory = new TBinaryProtocol.Factory()

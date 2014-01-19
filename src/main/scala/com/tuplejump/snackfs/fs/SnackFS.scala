@@ -34,7 +34,7 @@ import java.util.UUID
 
 case class SnackFS() extends FileSystem {
 
-  private val log = Logger.get("com.tuplejump.fs.SnackFS")
+  private val log = Logger.get("com.tuplejump.snackfs.fs.SnackFS")
 
   private var systemURI: URI = null
   private var currentDirectory: Path = null

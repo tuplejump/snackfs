@@ -26,7 +26,7 @@ import com.twitter.logging.Logger
 
 case class
 BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, atMost: FiniteDuration) extends InputStream {
-  private val log = Logger.get("com.tuplejump.fs.BlockInputStream")
+  private val log = Logger.get("com.tuplejump.snackfs.fs.BlockInputStream")
 
   private val LENGTH = blockMeta.length
 

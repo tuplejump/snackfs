@@ -51,7 +51,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
   LogConfiguration.config()
 
-  private val log = Logger.get("com.tuplejump.fs.ThriftStore")
+  private val log = Logger.get("com.tuplejump.snackfs.fs.ThriftStore")
   private val PATH_COLUMN: ByteBuffer = ByteBufferUtil.bytes("path")
   private val PARENT_PATH_COLUMN: ByteBuffer = ByteBufferUtil.bytes("parent_path")
   private val SENTINEL_COLUMN: ByteBuffer = ByteBufferUtil.bytes("sentinel")

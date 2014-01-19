@@ -31,8 +31,8 @@ object SnackfsBuild extends Build {
     base = file("."),
     settings = Project.defaultSettings ++ Seq(
       name := "snackfs",
-      organization := "tj",
-      version := "0.3-SNAPSHOT",
+      organization := "com.tuplejump.snackfs.tuplejump",
+      version := "0.5-EA",
       scalaVersion := "2.9.3",
       parallelExecution in Test := false,
       retrieveManaged := true,
