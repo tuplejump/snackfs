@@ -29,7 +29,7 @@ SnackFS cluster is also more resilient than a HDFS cluster as there is no SPOF l
 
 1. Checkout the source from http://github.com/tuplejump/snackfs or the_grand_central branch in http://githube.com/tuplejump/calliope
 
-2. To build SnackFS distribution run sbt's dist command i nthe project directory
+2. To build SnackFS distribution run sbt's dist command in the project directory
 ```
 [snackfs]$ sbt dist
 ```
@@ -53,18 +53,15 @@ SnackFS cluster is also more resilient than a HDFS cluster as there is no SPOF l
    * snackfs.replicationStrategy (default org.apache.cassandra.locator.SimpleStrategy)
 
 5. SnackFS Shell provides the fs commands similar to Hadoop Shell. For example to create a directory,
-
 ```
 [Snackfs(extracted)]$bin/snackfs -mkdir snackfs:///random
 ```
 
 ###To build and use with Hadoop
 
-1. Setup Apache Hadoop v1.0.4.(http://hadoop.apache.org/#Getting+Started).
-   The base directory will be referred as 'hadoop-1.0.4' in the following steps.
+1. Setup Apache Hadoop v1.0.4.(http://hadoop.apache.org/#Getting+Started). The base directory will be referred as 'hadoop-1.0.4' in the following steps.
 
 2. Execute the following commands in the snackfs project directory.
-
 ```
 [snackfs]$ sbt package
 ```
@@ -80,18 +77,14 @@ SnackFS cluster is also more resilient than a HDFS cluster as there is no SPOF l
 5. Start Cassandra (default setup for snackfs assumes its a cluster with 3 nodes)
 
 6. Hadoop fs commands can now be run using snackfs. For example,
-
 ```
 [hadoop-1.0.4]$ bin/hadoop fs -mkdir snackfs:///random
 ```
 
 ###To configure logging,
 If you want your logs in a File, update LogConfiguration.config like below
-
 ```scala
-
 val config = new LoggerFactory("", Option(Level.ALL), List(FileHandler("logs")), true)
-
 ```
 
 The arguments for LoggerFactory are
