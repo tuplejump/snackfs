@@ -16,18 +16,17 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.fs
+package com.tuplejump.snackfs.fs
 
 import org.apache.hadoop.fs.{Path, FSInputStream}
 import java.io.{IOException, InputStream}
 import scala.concurrent.Await
 import scala.concurrent.duration._
-import java.util.Date
 import com.twitter.logging.Logger
 
 case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSInputStream {
 
-  private val log = Logger.get(getClass)
+  private val log = Logger.get("com.tuplejump.snackfs.fs.FileSystemInputStream")
 
   private val INODE = Await.result(store.retrieveINode(path), 10 seconds)
   private val FILE_LENGTH: Long = INODE.blocks.map(_.length).sum

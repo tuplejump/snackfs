@@ -16,17 +16,17 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.fs
+package com.tuplejump.snackfs.fs
 
 import java.io.{IOException, InputStream}
 import scala.concurrent.Await
 import scala.concurrent.duration._
-import com.tuplejump.model.BlockMeta
+import com.tuplejump.snackfs.model.BlockMeta
 import com.twitter.logging.Logger
 
 case class
 BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, atMost: FiniteDuration) extends InputStream {
-  private val log = Logger.get(getClass)
+  private val log = Logger.get("com.tuplejump.snackfs.fs.BlockInputStream")
 
   private val LENGTH = blockMeta.length
 

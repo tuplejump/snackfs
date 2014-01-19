@@ -16,16 +16,14 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.fs
+package com.tuplejump.snackfs.fs
 
 import scala.concurrent.Future
 import org.apache.hadoop.fs.Path
 import java.util.UUID
 import java.nio.ByteBuffer
 import java.io.InputStream
-import com.tuplejump.model._
-import com.tuplejump.model.SubBlockMeta
-import com.tuplejump.model.BlockMeta
+import com.tuplejump.snackfs.model._
 import com.tuplejump.model.GenericOpSuccess
 
 trait FileSystemStore {
@@ -51,4 +49,8 @@ trait FileSystemStore {
   def fetchSubPaths(path: Path, isDeepFetch: Boolean): Future[Set[Path]]
 
   def getBlockLocations(path: Path): Future[Map[BlockMeta, List[String]]]
+
+  def acquireFileLock(path:Path,processId:UUID):Future[Boolean]
+
+  def releaseFileLock(path:Path):Future[Boolean]
 }

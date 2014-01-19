@@ -38,7 +38,7 @@ import org.apache.hadoop.conf.Configuration
 class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
   val configuration = new Configuration()
-  configuration.set("fs.keyspace", "STORE")
+  configuration.set("snackfs.keyspace", "STORE")
   val snackFSConfiguration = SnackFSConfiguration.get(configuration)
   val store = new ThriftStore(snackFSConfiguration)
   store.init
@@ -157,6 +157,55 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
 
     map.size must be(inode.blocks.size)
 
+  }
+
+  /* createlock related -- locking a file so that another process cannot write to it*/
+  it should "get lock when attempting for a file for the first time" in {
+    val processId = UUID.randomUUID()
+    val lockFuture = store.acquireFileLock(new Path("/testLock1"), processId)
+    val result = Await.result(lockFuture, snackFSConfiguration.atMost)
+    result must be(true)
+  }
+
+  it should "not get lock when attempting for a file from another process if lock is not released" in {
+    val processId = UUID.randomUUID()
+
+    val lockFuture = store.acquireFileLock(new Path("/testLock2"), processId)
+    val result = Await.result(lockFuture, snackFSConfiguration.atMost)
+    result must be(true)
+
+    val processId2 = UUID.randomUUID()
+    val lockFuture2 = store.acquireFileLock(new Path("/testLock2"), processId2)
+    val result2 = Await.result(lockFuture2, snackFSConfiguration.atMost)
+    result2 must be(false)
+  }
+
+  it should "release lock on which was acquired" in {
+    val processId = UUID.randomUUID()
+    val lockFuture = store.acquireFileLock(new Path("/testLock3"), processId)
+    val lockResult = Await.result(lockFuture, snackFSConfiguration.atMost)
+    lockResult must be(true)
+
+    val releaseFuture = store.releaseFileLock(new Path("/testLock3"))
+    val releaseResult = Await.result(releaseFuture, snackFSConfiguration.atMost)
+    releaseResult must be(true)
+  }
+
+  it should "get lock after a process has acquired and released it" in {
+    val processId = UUID.randomUUID()
+
+    val lockFuture = store.acquireFileLock(new Path("/testLock4"), processId )
+    val lockResult = Await.result(lockFuture, snackFSConfiguration.atMost)
+    lockResult must be(true)
+
+    val releaseFuture = store.releaseFileLock(new Path("/testLock4"))
+    val releaseResult = Await.result(releaseFuture, snackFSConfiguration.atMost)
+    releaseResult must be(true)
+
+    val processId2 = UUID.randomUUID()
+    val lockFuture2 = store.acquireFileLock(new Path("/testLock4"), processId2)
+    val lockResult2 = Await.result(lockFuture2, snackFSConfiguration.atMost)
+    lockResult2 must be(true)
   }
 
   override def afterAll() = {

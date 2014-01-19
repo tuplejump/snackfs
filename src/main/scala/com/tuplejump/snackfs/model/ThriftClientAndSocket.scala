@@ -16,13 +16,9 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.model
+package com.tuplejump.snackfs.model
 
-import java.util.UUID
+import org.apache.cassandra.thrift.Cassandra.AsyncClient
+import org.apache.thrift.transport.TNonblockingSocket
 
-case class SubBlockMeta(id:UUID,offset:Long,length:Long) {
-  override def toString= {
-    val result = "SubBlock["+(id,offset,length).toString()+"]"
-    result
-  }
-}
+case class ThriftClientAndSocket(client: AsyncClient, socket: TNonblockingSocket)

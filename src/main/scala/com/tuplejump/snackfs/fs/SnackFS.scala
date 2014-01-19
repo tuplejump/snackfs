@@ -16,7 +16,7 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.fs
+package com.tuplejump.snackfs.fs
 
 import java.net.URI
 import org.apache.hadoop.fs.permission.FsPermission
@@ -27,13 +27,14 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 
 import scala.util.{Failure, Success, Try}
-import com.tuplejump.model.{BlockMeta, SnackFSConfiguration, FileType, INode}
+import com.tuplejump.snackfs.model.{BlockMeta, SnackFSConfiguration, FileType, INode}
 import org.apache.hadoop.fs._
 import com.twitter.logging.Logger
+import java.util.UUID
 
 case class SnackFS() extends FileSystem {
 
-  private val log = Logger.get(getClass)
+  private val log = Logger.get("com.tuplejump.snackfs.fs.SnackFS")
 
   private var systemURI: URI = null
   private var currentDirectory: Path = null
@@ -42,6 +43,8 @@ case class SnackFS() extends FileSystem {
   private var atMost: FiniteDuration = null
   private var store: FileSystemStore = null
   private var customConfiguration: SnackFSConfiguration = _
+
+  val processId = UUID.randomUUID()
 
   override def initialize(uri: URI, configuration: Configuration) = {
     log.debug("Initializing SnackFs")
@@ -60,6 +63,9 @@ case class SnackFS() extends FileSystem {
     atMost = customConfiguration.atMost
     Await.ready(store.createKeyspace, atMost)
     store.init
+
+    log.debug("creating base directory")
+    mkdirs(new Path("/"))
 
     subBlockSize = customConfiguration.subBlockSize
   }
@@ -137,25 +143,41 @@ case class SnackFS() extends FileSystem {
              bufferSize: Int, replication: Short, blockSize: Long,
              progress: Progressable): FSDataOutputStream = {
 
-    val mayBeiNode = Try(Await.result(store.retrieveINode(filePath), atMost))
-    mayBeiNode match {
-      case Success(p) => {
-        if (p.isFile && !overwrite) {
-          val ex = new IOException("File exists and cannot be overwritten")
-          log.error(ex, "Failed to create file %s as it exists and cannot be overwritten", filePath)
-          throw ex
+    val isCreatePossible = Await.result(store.acquireFileLock(filePath, processId), atMost)
+    if (isCreatePossible) {
+      val mayBeiNode = Try(Await.result(store.retrieveINode(filePath), atMost))
+      mayBeiNode match {
+        case Success(p) => {
+          if (p.isFile && !overwrite) {
+            val ex = new IOException("File exists and cannot be overwritten")
+            log.error(ex, "Failed to create file %s as it exists and cannot be overwritten", filePath)
+            throw ex
+          }
         }
+        case Failure(e) =>
+          val parentPath = filePath.getParent
+          if (parentPath != null) {
+            mkdirs(parentPath)
+          }
       }
-      case Failure(e) =>
-        val parentPath = filePath.getParent
-        if (parentPath != null) {
-          mkdirs(parentPath)
-        }
+      log.debug("creating file %s", filePath)
+      val user = System.getProperty("user.name")
+      val permissions = FsPermission.getDefault
+      val timestamp = System.currentTimeMillis()
+      val iNode = INode(user, user, permissions, FileType.FILE, List(), timestamp)
+      Await.ready(store.storeINode(filePath, iNode), atMost)
+
+      val fileStream = new FileSystemOutputStream(store, filePath, blockSize, subBlockSize, bufferSize, atMost)
+      val fileDataStream = new FSDataOutputStream(fileStream, statistics)
+
+      store.releaseFileLock(filePath)
+      fileDataStream
     }
-    log.debug("creating file %s", filePath)
-    val fileStream = new FileSystemOutputStream(store, filePath, blockSize, subBlockSize, bufferSize, atMost)
-    val fileDataStream = new FSDataOutputStream(fileStream, statistics)
-    fileDataStream
+    else {
+      val ex = new IOException("Acquire lock failure")
+      log.error(ex, "Could not get lock on file %s", filePath)
+      throw ex
+    }
   }
 
   override def getDefaultBlockSize: Long = {

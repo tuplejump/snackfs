@@ -16,13 +16,12 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.model
+package com.tuplejump.snackfs.util
 
-import java.util.UUID
+import com.twitter.logging.{FileHandler, Level, LoggerFactory}
 
-case class BlockMeta(id: UUID, offset: Long, length: Long, subBlocks: Seq[SubBlockMeta]) {
-  override def toString = {
-    val result = "Block[" + (id,offset,length).toString() + "]"
-    result
-  }
+object LogConfiguration {
+
+  val config = new LoggerFactory("", Option(Level.DEBUG), List(FileHandler("logs")), true)
+
 }

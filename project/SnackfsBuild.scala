@@ -22,6 +22,8 @@ import sbt.Keys._
 
 object SnackfsBuild extends Build {
 
+  lazy val cas_version = "1.2.12"
+
   lazy val dist = TaskKey[Unit]("dist", "Generates project distribution")
 
   lazy val snackfs = Project(
@@ -29,15 +31,15 @@ object SnackfsBuild extends Build {
     base = file("."),
     settings = Project.defaultSettings ++ Seq(
       name := "snackfs",
-      organization := "tj",
-      version := "0.3-SNAPSHOT",
+      organization := "com.tuplejump",
+      version := "0.5-EA",
       scalaVersion := "2.9.3",
       parallelExecution in Test := false,
       retrieveManaged := true,
 
       libraryDependencies ++= Seq("org.apache.hadoop" % "hadoop-core" % "1.0.4",
-        "org.apache.cassandra" % "cassandra-thrift" % "1.2.9",
-        "org.apache.cassandra" % "cassandra-all" % "1.2.9",
+        "org.apache.cassandra" % "cassandra-thrift" % cas_version,
+        "org.apache.cassandra" % "cassandra-all" % cas_version,
         "commons-pool" % "commons-pool" % "1.6",
         "org.scalatest" %% "scalatest" % "1.9.1" % "test",
         "org.apache.commons" % "commons-io" % "1.3.2" % "test",
@@ -53,12 +55,12 @@ object SnackfsBuild extends Build {
       val userHome = System.getProperty("user.home")
       val ivyHome = userHome + "/.ivy2/cache/" //should be updated to point to ivy cache if its not in home directory
 
-      val destination = "SnackFS/"
+      val destination = "target/SnackFS-%s/".format(v)
       val lib = destination + "lib/"
       val bin = destination + "bin/"
       val conf = destination + "conf/"
 
-      IO.copyFile(f, new File("SnackFS/lib/" + f.getName))
+      IO.copyFile(f, new File(lib + f.getName))
 
       /*Dependencies*/
       IO.copyFile(new File(ivyHome + "org.scala-lang/scala-library/jars/scala-library-2.9.3.jar"),
@@ -71,7 +73,9 @@ object SnackfsBuild extends Build {
       })
 
       /*script and configuration */
-      IO.copyFile(new File("src/main/scripts/snackfs"), new File(bin + "snackfs"))
+      val shellBin: sbt.File = new File(bin + "snackfs")
+      IO.copyFile(new File("src/main/scripts/snackfs"), shellBin)
+      shellBin.setExecutable(true, false)
       IO.copyFile(new File("src/main/resources/core-site.xml"), new File(conf + "core-site.xml"))
 
       val jarFiles = IO.listFiles(new File(lib))
@@ -80,18 +84,21 @@ object SnackfsBuild extends Build {
       val allFiles = jarFiles ++ configFiles ++ scriptFiles
       val fileSeq = for (f <- allFiles) yield (f, f.getPath)
 
-      val distZip: sbt.File = new File("target/snackfs-%s.tar.gz".format(v))
-      IO.zip(fileSeq, distZip)
+      val distTgz: sbt.File = new File("target/snackfs-%s.tgz".format(v))
+      val tarball: sbt.File = makeTarball("snackfs-%s".format(v), new File(destination), new File("target"))
+      IO.gzip(tarball, distTgz)
+
+      IO.delete(tarball)
       IO.delete(new File(destination))
-      s.log.info("SnackFS Distribution created at %s".format(distZip.getAbsolutePath))
+      s.log.info("SnackFS Distribution created at %s".format(distTgz.getAbsolutePath))
   }
 
   def getLibraries: List[String] = {
     val jarSource = "lib_managed/jars/"
 
     val cassandra = jarSource + "org.apache.cassandra/"
-    val cassandraRelated = List(cassandra + "cassandra-all/cassandra-all-1.2.9.jar",
-      cassandra + "cassandra-thrift/cassandra-thrift-1.2.9.jar",
+    val cassandraRelated = List(cassandra + "cassandra-all/cassandra-all-" + cas_version + ".jar",
+      cassandra + "cassandra-thrift/cassandra-thrift-" + cas_version + ".jar",
       jarSource + "org.apache.thrift/libthrift/libthrift-0.7.0.jar",
       jarSource + "commons-pool/commons-pool/commons-pool-1.6.jar"
     )
@@ -113,8 +120,23 @@ object SnackfsBuild extends Build {
       jarSource + "org.slf4j/slf4j-api/slf4j-api-1.7.2.jar"
     )
 
-    val requiredJars = cassandraRelated ++ hadoopRelated ++ otherHadoopDeps
+    val logger = jarSource + "com.twitter/"
+    val loggingRelated = List(logger + "util-app_2.9.2/util-app_2.9.2-6.7.0.jar",
+      logger + "util-core_2.9.2/util-core_2.9.2-6.7.0.jar",
+      logger + "util-logging_2.9.2/util-logging_2.9.2-6.7.0.jar")
+
+    val requiredJars = cassandraRelated ++ hadoopRelated ++ otherHadoopDeps ++ loggingRelated
     requiredJars
+  }
+
+  def makeTarball(name: String, tarDir: File, rdir: File /* mappings: Seq[(File, String)]*/): File = {
+    val tarball = new File("target") / (name + ".tar")
+    val process: ProcessBuilder = Process(Seq("tar", "-pcf", tarball.getAbsolutePath, tarDir.getName), Some(rdir))
+    process.! match {
+      case 0 => ()
+      case n => sys.error("Error tarballing " + tarball + ". Exit code: " + n)
+    }
+    tarball
   }
 
 }

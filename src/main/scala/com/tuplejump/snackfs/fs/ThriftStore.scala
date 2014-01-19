@@ -16,13 +16,12 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.fs
-
+package com.tuplejump.snackfs.fs
 
 import org.apache.cassandra.thrift.Cassandra.AsyncClient
 import org.apache.cassandra.thrift.Cassandra.AsyncClient._
 
-import org.apache.cassandra.utils.{FBUtilities, ByteBufferUtil}
+import org.apache.cassandra.utils.{UUIDGen, FBUtilities, ByteBufferUtil}
 import scala.concurrent._
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.apache.cassandra.thrift._
@@ -34,10 +33,8 @@ import org.apache.hadoop.fs.Path
 import java.math.BigInteger
 import java.util.UUID
 import java.io.InputStream
-import com.tuplejump.util.AsyncUtil
-import com.tuplejump.model._
-import com.tuplejump.model.SubBlockMeta
-import com.tuplejump.model.BlockMeta
+import com.tuplejump.snackfs.util.{LogConfiguration, AsyncUtil}
+import com.tuplejump.snackfs.model._
 import com.tuplejump.model.GenericOpSuccess
 import org.apache.cassandra.dht.Murmur3Partitioner
 import org.apache.thrift.async.TAsyncClientManager
@@ -50,7 +47,9 @@ import com.twitter.logging.Logger
 
 class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
-  private val log = Logger.get(getClass)
+  LogConfiguration.config()
+
+  private val log = Logger.get("com.tuplejump.snackfs.fs.ThriftStore")
   private val PATH_COLUMN: ByteBuffer = ByteBufferUtil.bytes("path")
   private val PARENT_PATH_COLUMN: ByteBuffer = ByteBufferUtil.bytes("parent_path")
   private val SENTINEL_COLUMN: ByteBuffer = ByteBufferUtil.bytes("sentinel")
@@ -60,6 +59,8 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
   private val INODE_COLUMN_FAMILY_NAME = "inode"
   private val BLOCK_COLUMN_FAMILY_NAME = "sblock"
+
+  private val LOCK_COLUMN_FAMILY_NAME = "createlock"
 
   private val partitioner = new Murmur3Partitioner()
 
@@ -128,7 +129,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
       new ClientPoolFactory(configuration.CassandraHost, configuration.CassandraPort, configuration.keySpace)) {
       override def close() {
         super.close()
-        getFactory.asInstanceOf[ClientPoolFactory].closePool()
+        getFactory.asInstanceOf[ClientPoolFactory].closePool
       }
     }
   }
@@ -200,12 +201,31 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
     columnFamily
   }
 
+  private def createLockCF(cfName: String, minCompaction: Int, maxCompaction: Int) = {
+
+    val columnFamily = new CfDef()
+    columnFamily.setName(cfName)
+    columnFamily.setComparator_type("UUIDType")
+    columnFamily.setGc_grace_seconds(GRACE_SECONDS)
+    columnFamily.setComment("Stores information about which process is trying to write a inode")
+    columnFamily.setKeyspace(configuration.keySpace)
+
+    columnFamily.setMin_compaction_threshold(minCompaction)
+    columnFamily.setMax_compaction_threshold(maxCompaction)
+
+    columnFamily
+  }
+
   private def buildSchema: KsDef = {
+    val MIN_COMPACTION = 16
+    val MAX_COMPACTION = 64
     val inode = createINodeCF(INODE_COLUMN_FAMILY_NAME)
-    val sblock = createSBlockCF(BLOCK_COLUMN_FAMILY_NAME, 16, 64)
+    val sblock = createSBlockCF(BLOCK_COLUMN_FAMILY_NAME, MIN_COMPACTION, MAX_COMPACTION)
+
+    val createLock = createLockCF(LOCK_COLUMN_FAMILY_NAME, MIN_COMPACTION, MAX_COMPACTION)
 
     val ksDef: KsDef = new KsDef(configuration.keySpace, configuration.replicationStrategy,
-      List(inode, sblock))
+      List(inode, sblock, createLock))
     ksDef.setStrategy_options(Map("replication_factor" -> configuration.replicationFactor.toString))
 
     ksDef
@@ -300,6 +320,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
       val inodeDataPath = new ColumnPath(INODE_COLUMN_FAMILY_NAME).setColumn(DATA_COLUMN)
 
       val inodePromise = promise[INode]()
+      log.debug("fetching Inode for path %s", path)
       val pathInfo = performGet(client, pathKey, inodeDataPath)
       pathInfo.onSuccess {
         case p =>
@@ -346,6 +367,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
     client =>
       val blockIdBuffer: ByteBuffer = ByteBufferUtil.bytes(blockId)
       val subBlockIdBuffer = ByteBufferUtil.bytes(subBlockId)
+      log.debug("fetching subBlock for path %s", subBlockId.toString)
       val subBlockFuture = performGet(client, blockIdBuffer, new ColumnPath(BLOCK_COLUMN_FAMILY_NAME).setColumn(subBlockIdBuffer))
       val prom = promise[InputStream]()
       subBlockFuture.onSuccess {
@@ -445,7 +467,15 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
     indexExpr = indexExpr ++ List(sentinelIndexExpr, startPathIndexExpr)
 
-    log.debug("fetching subPaths for %s, %s ", path, if (isDeepFetch) "recursively" else "non-recursively")
+    def recursionStrategy: String = {
+      if (isDeepFetch) {
+        "recursively"
+      } else {
+        "non-recursively"
+      }
+    }
+
+    log.debug("fetching subPaths for %s, %s ", path, recursionStrategy)
     fetchPaths(indexExpr)
   }
 
@@ -506,7 +536,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
           ringFuture.onSuccess {
             case r =>
-              log.debug("fetched ring details for keyspace %", configuration.keySpace)
+              log.debug("fetched ring details for keyspace %s", configuration.keySpace)
               val tf = partitioner.getTokenFactory
               val ring = r.getResult.map(p => (p.getEndpoints, p.getStart_token.toLong, p.getEnd_token.toLong))
 
@@ -550,4 +580,133 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
       result.future
   })
+
+  /* Lock for writing a file
+   *
+   * Use case
+   * one more process of the same cluster attempt writing to the same file
+   * within a very small fraction of time lag
+   *
+   * Algorithm
+   * 1. Write a column with name timeUUID and value as processId for given file path(rowId).
+   * 2. Read back all columns for path
+   *      case 1) count>=1 && firstEntry.value == processId
+   *                   Got the lock
+   *      case 2) No lock
+   * 3. Do something in your code assuming the row is locked
+   * 4. Release the lock by deleting the row
+   *
+   */
+
+  private def addLockColumn(path: Path, processId: UUID, client: AsyncClient): Future[insert_call] = {
+    val key = getPathKey(path)
+    val columnParent = new ColumnParent(LOCK_COLUMN_FAMILY_NAME)
+
+    val timeStamp = UUIDGen.getTimeUUID
+
+    val column = new Column()
+      .setName(ByteBufferUtil.bytes(timeStamp))
+      .setValue(ByteBufferUtil.bytes(processId))
+      .setTimestamp(System.currentTimeMillis())
+
+    val addColumnFuture = AsyncUtil.executeAsync[insert_call](
+      client.insert(key, columnParent, column, ConsistencyLevel.QUORUM, _))
+
+    log.debug("adding column")
+    addColumnFuture
+  }
+
+  private def getLockRow(path: Path, client: Cassandra.AsyncClient): Future[get_slice_call] = {
+    val key = getPathKey(path)
+    val columnParent = new ColumnParent(LOCK_COLUMN_FAMILY_NAME)
+    val sliceRange = new SliceRange().setStart(Array[Byte]()).setFinish(Array[Byte]())
+    val slicePredicate = new SlicePredicate().setColumn_names(null).setSlice_range(sliceRange)
+
+    val getRowFuture = AsyncUtil.executeAsync[get_slice_call](
+      client.get_slice(key, columnParent, slicePredicate, ConsistencyLevel.QUORUM, _))
+
+    log.debug("getting row")
+    getRowFuture
+  }
+
+  private def isCreator(processId: UUID, columns: java.util.List[ColumnOrSuperColumn]): Boolean = {
+    log.debug("checking for access to create a file for %s", processId)
+    if (columns.length >= 1) {
+      val firstEntry = columns.head.getColumn
+      val entryIdString: String = new String(firstEntry.getValue)
+      val processIdString: String = new String(ByteBufferUtil.bytes(processId).array())
+      log.debug("value found %s", entryIdString)
+      log.debug("given value %s", processIdString)
+      if (entryIdString != processIdString) {
+        false
+      } else true
+    } else false
+  }
+
+  def acquireFileLock(path: Path, processId: UUID): Future[Boolean] = executeWithClient({
+    client =>
+      val prom = promise[Boolean]()
+      log.debug("adding column for create lock")
+      val addColumnFuture = addLockColumn(path, processId, client)
+      addColumnFuture.onSuccess {
+        case res => {
+          log.debug("added column for create lock")
+          val getRowFuture = getLockRow(path, client)
+
+          log.debug("getting row for create lock")
+          getRowFuture.onSuccess {
+            case rowData => {
+              val result = isCreator(processId, rowData.getResult)
+              prom success result
+            }
+          }
+
+          getRowFuture.onFailure {
+            case e => {
+              log.error(e, "error in getting row")
+              prom failure e
+            }
+          }
+        }
+      }
+
+      addColumnFuture.onFailure {
+        case e => {
+          log.error(e, "error in adding column for create lock")
+          prom failure e
+        }
+      }
+      prom.future
+  })
+
+  private def deleteLockRow(path: Path, client: Cassandra.AsyncClient): Future[remove_call] = {
+    val columnPath = new ColumnPath(LOCK_COLUMN_FAMILY_NAME)
+    val timestamp = System.currentTimeMillis
+
+    val deleteLockFuture = AsyncUtil.executeAsync[remove_call](
+      client.remove(getPathKey(path), columnPath, timestamp, ConsistencyLevel.QUORUM, _))
+
+    deleteLockFuture
+  }
+
+  def releaseFileLock(path: Path): Future[Boolean] = executeWithClient({
+    client =>
+      val prom = promise[Boolean]()
+      val deleteLockFuture = deleteLockRow(path, client)
+
+      deleteLockFuture.onSuccess {
+        case res => {
+          log.debug("deleted lock")
+          prom success true
+        }
+      }
+      deleteLockFuture.onFailure {
+        case e => {
+          log.error(e, "failed to delete lock")
+          prom success false
+        }
+      }
+      prom.future
+  })
+
 }

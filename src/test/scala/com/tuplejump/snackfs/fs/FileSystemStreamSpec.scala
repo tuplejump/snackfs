@@ -32,7 +32,7 @@ import org.apache.hadoop.conf.Configuration
 
 class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   val configuration = new Configuration()
-  configuration.set("fs.keyspace", "STREAM")
+  configuration.set("snackfs.keyspace", "STREAM")
   val snackFSConfiguration = SnackFSConfiguration.get(configuration)
 
   val store = new ThriftStore(snackFSConfiguration)
