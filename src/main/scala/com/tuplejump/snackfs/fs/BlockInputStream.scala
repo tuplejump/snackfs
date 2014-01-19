@@ -16,12 +16,12 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.fs
+package com.tuplejump.snackfs.fs
 
 import java.io.{IOException, InputStream}
 import scala.concurrent.Await
 import scala.concurrent.duration._
-import com.tuplejump.model.BlockMeta
+import com.tuplejump.snackfs.model.BlockMeta
 import com.twitter.logging.Logger
 
 case class

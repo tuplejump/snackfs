@@ -16,7 +16,7 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.model
+package com.tuplejump.snackfs.model
 
 import java.util.UUID
 

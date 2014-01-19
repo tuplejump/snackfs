@@ -27,8 +27,8 @@ SnackFS is our bite-sized, lightweight HDFS compatible FileSystem built over Cas
 
         [snackfs]$ sbt dist
 
-   This will result in a "snackfs.tar.gz" file in the "target" directory of "snackfs".
-   Extract "snackfs.tar.gz" at desired location and grant user permissions
+   This will result in a "snackfs-{version}.zip" file in the "target" directory of "snackfs".
+   Extract "snackfs-{version}.zip" at desired location and grant user permissions
    to read, write and execute the script "snackfs" located in bin directory
 
 3. Start Cassandra (default setup for snackfs assumes its a cluster with 3 nodes)
@@ -47,8 +47,7 @@ SnackFS is our bite-sized, lightweight HDFS compatible FileSystem built over Cas
 
 5. SnackFS Shell provides the fs commands similar to Hadoop Shell. For example to create a directory,
 
-        [Snackfs(extracted)]$bin/snackfs fs -mkdir snackfs:///random
-
+        [Snackfs(extracted)]$bin/snackfs -mkdir snackfs:///random
 
 ###To build and use with Hadoop
 

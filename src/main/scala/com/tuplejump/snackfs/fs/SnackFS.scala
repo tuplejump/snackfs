@@ -16,7 +16,7 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.fs
+package com.tuplejump.snackfs.fs
 
 import java.net.URI
 import org.apache.hadoop.fs.permission.FsPermission
@@ -27,7 +27,7 @@ import scala.concurrent.Await
 import scala.concurrent.duration._
 
 import scala.util.{Failure, Success, Try}
-import com.tuplejump.model.{BlockMeta, SnackFSConfiguration, FileType, INode}
+import com.tuplejump.snackfs.model.{BlockMeta, SnackFSConfiguration, FileType, INode}
 import org.apache.hadoop.fs._
 import com.twitter.logging.Logger
 import java.util.UUID

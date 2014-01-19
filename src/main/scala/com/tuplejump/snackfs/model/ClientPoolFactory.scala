@@ -17,7 +17,7 @@
  *
  */
 
-package com.tuplejump.model
+package com.tuplejump.snackfs.model
 
 import org.apache.commons.pool.BasePoolableObjectFactory
 import org.apache.thrift.async.TAsyncClientManager
@@ -25,7 +25,7 @@ import org.apache.thrift.protocol.TBinaryProtocol
 import org.apache.cassandra.thrift.Cassandra.AsyncClient
 import org.apache.thrift.transport.TNonblockingSocket
 import scala.concurrent.Await
-import com.tuplejump.util.AsyncUtil
+import com.tuplejump.snackfs.util.AsyncUtil
 import org.apache.cassandra.thrift.Cassandra.AsyncClient.set_keyspace_call
 import scala.concurrent.duration._
 

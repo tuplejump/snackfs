@@ -17,7 +17,7 @@
  *
  */
 
-package com.tuplejump.model
+package com.tuplejump.snackfs.model
 
 import org.apache.hadoop.fs.permission.FsPermission
 import java.io._

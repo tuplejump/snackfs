@@ -31,13 +31,13 @@ object SnackfsBuild extends Build {
     base = file("."),
     settings = Project.defaultSettings ++ Seq(
       name := "snackfs",
-      organization := "com.tuplejump.snackfs.tuplejump",
+      organization := "com.tuplejump",
       version := "0.5-EA",
       scalaVersion := "2.9.3",
       parallelExecution in Test := false,
       retrieveManaged := true,
 
-      libraryDependencies ++= Seq("org.apache.hadoop" % "hadoop-client" % "1.0.4",
+      libraryDependencies ++= Seq("org.apache.hadoop" % "hadoop-core" % "1.0.4",
         "org.apache.cassandra" % "cassandra-thrift" % cas_version,
         "org.apache.cassandra" % "cassandra-all" % cas_version,
         "commons-pool" % "commons-pool" % "1.6",
@@ -82,7 +82,7 @@ object SnackfsBuild extends Build {
       val allFiles = jarFiles ++ configFiles ++ scriptFiles
       val fileSeq = for (f <- allFiles) yield (f, f.getPath)
 
-      val distZip: sbt.File = new File("target/snackfs-%s.tar.gz".format(v))
+      val distZip: sbt.File = new File("target/snackfs-%s.zip".format(v))
       IO.zip(fileSeq, distZip)
       IO.delete(new File(destination))
       s.log.info("SnackFS Distribution created at %s".format(distZip.getAbsolutePath))
@@ -98,7 +98,7 @@ object SnackfsBuild extends Build {
       jarSource + "commons-pool/commons-pool/commons-pool-1.6.jar"
     )
 
-    val hadoopRelated = List(jarSource + "org.apache.hadoop/hadoop-client/hadoop-client-1.0.4.jar",
+    val hadoopRelated = List(jarSource + "org.apache.hadoop/hadoop-core/hadoop-core-1.0.4.jar",
       jarSource + "commons-cli/commons-cli/commons-cli-1.2.jar",
       jarSource + "commons-configuration/commons-configuration/commons-configuration-1.6.jar",
       jarSource + "commons-lang/commons-lang/commons-lang-2.6.jar",

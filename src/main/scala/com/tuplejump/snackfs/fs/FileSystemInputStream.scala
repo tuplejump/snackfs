@@ -16,7 +16,7 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.fs
+package com.tuplejump.snackfs.fs
 
 import org.apache.hadoop.fs.{Path, FSInputStream}
 import java.io.{IOException, InputStream}

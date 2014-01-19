@@ -16,7 +16,7 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.fs
+package com.tuplejump.snackfs.fs
 
 import org.apache.cassandra.thrift.Cassandra.AsyncClient
 import org.apache.cassandra.thrift.Cassandra.AsyncClient._
@@ -33,10 +33,8 @@ import org.apache.hadoop.fs.Path
 import java.math.BigInteger
 import java.util.UUID
 import java.io.InputStream
-import com.tuplejump.util.{LogConfiguration, AsyncUtil}
-import com.tuplejump.model._
-import com.tuplejump.model.SubBlockMeta
-import com.tuplejump.model.BlockMeta
+import com.tuplejump.snackfs.util.{LogConfiguration, AsyncUtil}
+import com.tuplejump.snackfs.model._
 import com.tuplejump.model.GenericOpSuccess
 import org.apache.cassandra.dht.Murmur3Partitioner
 import org.apache.thrift.async.TAsyncClientManager

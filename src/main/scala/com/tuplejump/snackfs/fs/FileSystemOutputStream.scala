@@ -16,7 +16,7 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.fs
+package com.tuplejump.snackfs.fs
 
 import java.io.{IOException, OutputStream}
 import org.apache.hadoop.fs.Path
@@ -26,7 +26,7 @@ import java.nio.ByteBuffer
 import org.apache.hadoop.fs.permission.FsPermission
 import scala.concurrent.Await
 import scala.concurrent.duration._
-import com.tuplejump.model.{SubBlockMeta, FileType, INode, BlockMeta}
+import com.tuplejump.snackfs.model.{SubBlockMeta, FileType, INode, BlockMeta}
 import com.twitter.logging.Logger
 
 case class FileSystemOutputStream(store: FileSystemStore, path: Path,

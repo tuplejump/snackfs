@@ -2,22 +2,46 @@
 <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
 
 <configuration>
-     <property>
-         <name>fs.snackfs.impl</name>
-         <value>com.tuplejump.snackfs.fs.SnackFS</value>
-     </property>
-     <property>
-	    <name>snackfs.keyspace</name>
-	    <value>snackfs</value>
-     </property>
-     <property>
+    <property>
+        <name>snackfs.cassandra.host</name>
+        <value>127.0.0.1</value>
+    </property>
+    <property>
+        <name>snackfs.cassandra.port</name>
+        <value>9160</value>
+    </property>
+    <property>
+        <name>snackfs.consistencyLevel.write</name>
+        <value>QUORUM</value>
+    </property>
+    <property>
+        <name>snackfs.consistencyLevel.read</name>
+        <value>QUORUM</value>
+    </property>
+    <property>
+        <name>snackfs.replicationFactor</name>
+        <value>3</value>
+    </property>
+    <property>
+        <name>snackfs.replicationStrategy</name>
+        <value>org.apache.cassandra.locator.SimpleStrategy</value>
+    </property>
+    <property>
+        <name>fs.snackfs.impl</name>
+        <value>com.tuplejump.snackfs.fs.SnackFS</value>
+    </property>
+    <property>
+        <name>snackfs.keyspace</name>
+        <value>snackfs</value>
+    </property>
+    <property>
         <name>snackfs.subblock.size</name>
         <value>8388608</value>
-     </property>
-     <property>
-         <name>snackfs.block.size</name>
-         <value>134217728</value>
-     </property>
+    </property>
+    <property>
+        <name>snackfs.block.size</name>
+        <value>134217728</value>
+    </property>
     <property>
         <name>fs.default.name</name>
         <value>snackfs:///</value>

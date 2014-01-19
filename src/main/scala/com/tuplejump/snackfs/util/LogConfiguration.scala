@@ -16,7 +16,7 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.util
+package com.tuplejump.snackfs.util
 
 import com.twitter.logging.{FileHandler, Level, LoggerFactory}
 
