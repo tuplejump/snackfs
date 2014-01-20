@@ -16,7 +16,7 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.fs
+package com.tuplejump.snackfs.fs
 
 import org.scalatest.{BeforeAndAfterAll, FlatSpec}
 import java.net.URI
@@ -27,7 +27,7 @@ import java.nio.file.{FileSystems, Files}
 import org.apache.commons.io.IOUtils
 import org.scalatest.matchers.MustMatchers
 import org.apache.cassandra.locator.SimpleStrategy
-import com.tuplejump.model.SnackFSConfiguration
+import com.tuplejump.snackfs.model.SnackFSConfiguration
 import org.apache.hadoop.conf.Configuration
 
 class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {

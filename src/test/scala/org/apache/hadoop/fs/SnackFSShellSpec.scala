@@ -53,7 +53,7 @@ class SnackFSShellSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers
 
   val isTrue = true
 
-  val snackFSCommands = Seq("./snackfs", "fs")
+  val snackFSCommands = Seq("./snackfs")
 
   val timestamp = new Date().getTime
   val basePath = "testFSShell" + timestamp

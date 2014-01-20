@@ -27,15 +27,15 @@ SnackFS cluster is also more resilient than a HDFS cluster as there is no SPOF l
 
 ###Build from Source
 
-1. Checkout the source from http://github.com/tuplejump/snackfs or the_grand_central branch in http://githube.com/tuplejump/calliope
+1. Checkout the source from http://github.com/tuplejump/snackfs or the_grand_central branch in http://github.com/tuplejump/calliope
 
 2. To build SnackFS distribution run sbt's dist command in the project directory
 ```
 [snackfs]$ sbt dist
 ```
 
-   This will result in a "snackfs-{version}.zip" file in the "target" directory of "snackfs".
-   Extract "snackfs-{version}.zip" at desired location and grant user permissions
+   This will result in a "snackfs-{version}.tgz" file in the "target" directory of "snackfs".
+   Extract "snackfs-{version}.tgz" at desired location and grant user permissions
    to read, write and execute the script "snackfs" located in bin directory
 
 3. Start Cassandra (default setup for snackfs assumes its a cluster with 3 nodes)

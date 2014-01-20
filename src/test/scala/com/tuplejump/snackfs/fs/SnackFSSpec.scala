@@ -16,7 +16,7 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.fs
+package com.tuplejump.snackfs.fs
 
 import org.scalatest.{BeforeAndAfterAll, FlatSpec}
 import org.scalatest.matchers.MustMatchers

@@ -16,7 +16,7 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.fs
+package com.tuplejump.snackfs.fs
 
 import scala.concurrent.Await
 
@@ -29,10 +29,8 @@ import org.apache.cassandra.utils.ByteBufferUtil
 import org.apache.commons.io.IOUtils
 import org.scalatest.matchers.MustMatchers
 import org.apache.cassandra.thrift.NotFoundException
-import com.tuplejump.model._
+import com.tuplejump.snackfs.model._
 import com.tuplejump.model.GenericOpSuccess
-import com.tuplejump.model.SubBlockMeta
-import com.tuplejump.model.BlockMeta
 import org.apache.hadoop.conf.Configuration
 
 class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
