@@ -41,14 +41,14 @@ object SnackfsBuild extends Build {
         "org.apache.cassandra" % "cassandra-thrift" % cas_version,
         "org.apache.cassandra" % "cassandra-all" % cas_version,
         "commons-pool" % "commons-pool" % "1.6",
-        "org.scalatest" %% "scalatest" % "1.9.1" % "test",
-        "org.apache.commons" % "commons-io" % "1.3.2" % "test",
-        "com.novocode" % "junit-interface" % "0.10" % "test",
-        "org.apache.commons" % "commons-lang3" % "3.1" % "test",
+        "org.scalatest" %% "scalatest" % "1.9.1" % "it,test",
+        "org.apache.commons" % "commons-io" % "1.3.2" % "it,test",
+        "com.novocode" % "junit-interface" % "0.10" % "it,test",
+        "org.apache.commons" % "commons-lang3" % "3.1" % "it,test",
         "com.twitter" % "util-logging_2.9.2" % "6.7.0"
       )
     ) ++ Seq(distTask)
-  )
+  ).configs(IntegrationTest).settings(Defaults.itSettings: _*)
 
   def distTask = dist in Compile <<= (packageBin in Compile, version in Compile, streams) map {
     (f: File, v: String, s) =>
@@ -78,7 +78,7 @@ object SnackfsBuild extends Build {
       jars.foreach(j => {
         val jarFile = new File(j)
         IO.copyFile(jarFile, new File(lib + jarFile.getName))
-        if(forSpark.contains(jarFile.getName)){
+        if (forSpark.contains(jarFile.getName)) {
           IO.copyFile(jarFile, new File(spark + jarFile.getName))
         }
       })
