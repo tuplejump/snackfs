@@ -22,6 +22,14 @@ import com.twitter.logging.{FileHandler, Level, LoggerFactory}
 
 object LogConfiguration {
 
-  val config = new LoggerFactory("", Option(Level.DEBUG), List(FileHandler("logs")), true)
+  val level = System.getenv("SNACKFS_LOG_LEVEL") match {
+    case "DEBUG" => Level.DEBUG
+    case "INFO" => Level.INFO
+    case "ERROR" => Level.ERROR
+    case "ALL" => Level.ALL
+    case "OFF" => Level.OFF
+    case _ => Level.ERROR
+  }
+  val config = new LoggerFactory("", Some(level), List(FileHandler("logs")), true)
 
 }

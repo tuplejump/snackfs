@@ -37,7 +37,7 @@ object SnackfsBuild extends Build {
       parallelExecution in Test := false,
       retrieveManaged := true,
 
-      libraryDependencies ++= Seq("org.apache.hadoop" % "hadoop-core" % "1.0.4",
+      libraryDependencies ++= Seq("org.apache.hadoop" % "hadoop-core" % "1.0.4" % "provided",
         "org.apache.cassandra" % "cassandra-thrift" % cas_version,
         "org.apache.cassandra" % "cassandra-all" % cas_version,
         "commons-pool" % "commons-pool" % "1.6",
@@ -59,8 +59,16 @@ object SnackfsBuild extends Build {
       val lib = destination + "lib/"
       val bin = destination + "bin/"
       val conf = destination + "conf/"
+      val spark = destination + "snack-spark/"
+
+      val forSpark = Set("cassandra-all-" + cas_version + ".jar",
+        "cassandra-thrift-" + cas_version + ".jar",
+        "commons-pool-1.6.jar",
+        "libthrift-0.7.0.jar",
+        "util-core_2.9.2-6.7.0.jar", "util-logging_2.9.2-6.7.0.jar", "snackfs_2.9.3-0.5-EA.jar")
 
       IO.copyFile(f, new File(lib + f.getName))
+      IO.copyFile(f, new File(spark + f.getName))
 
       /*Dependencies*/
       IO.copyFile(new File(ivyHome + "org.scala-lang/scala-library/jars/scala-library-2.9.3.jar"),
@@ -70,6 +78,9 @@ object SnackfsBuild extends Build {
       jars.foreach(j => {
         val jarFile = new File(j)
         IO.copyFile(jarFile, new File(lib + jarFile.getName))
+        if(forSpark.contains(jarFile.getName)){
+          IO.copyFile(jarFile, new File(spark + jarFile.getName))
+        }
       })
 
       /*script and configuration */

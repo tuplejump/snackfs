@@ -35,8 +35,7 @@ SnackFS cluster is also more resilient than a HDFS cluster as there is no SPOF l
 ```
 
    This will result in a "snackfs-{version}.tgz" file in the "target" directory of "snackfs".
-   Extract "snackfs-{version}.tgz" at desired location and grant user permissions
-   to read, write and execute the script "snackfs" located in bin directory
+   Extract "snackfs-{version}.tgz" to the desired location.
 
 3. Start Cassandra (default setup for snackfs assumes its a cluster with 3 nodes)
 
@@ -82,7 +81,21 @@ SnackFS cluster is also more resilient than a HDFS cluster as there is no SPOF l
 ```
 
 ###To configure logging,
-If you want your logs in a File, update LogConfiguration.config like below
+
+#### In System Environment
+
+Set SNACKFS_LOG_LEVEL in the Shell to one of the following Values
+
+* DEBUG
+* INFO
+* ERROR
+* ALL
+* OFF
+
+Default value if not set if ERROR
+
+####In code (for further control/tuning)
+If you want your logs in a File, update LogConfiguration.scala like below
 ```scala
 val config = new LoggerFactory("", Option(Level.ALL), List(FileHandler("logs")), true)
 ```
