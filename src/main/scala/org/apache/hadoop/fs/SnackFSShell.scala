@@ -253,10 +253,9 @@ class SnackFSShell extends FsShell {
         files
       }
       catch {
-        case e: IOException => {
+        case e: IOException =>
           System.err.println(cmd + ": could not get get listing for '" + path + "' : " + e.getMessage.split("\n")(0))
           null
-        }
       }
     }
   }
@@ -387,26 +386,23 @@ class SnackFSShell extends FsShell {
         }
       }
       catch {
-        case e: RemoteException => {
+        case e: RemoteException =>
           exitCode = -1
           try {
             val content: Array[String] = e.getLocalizedMessage.split("\n")
             System.err.println(cmd.substring(1) + ": " + content(0))
           }
           catch {
-            case ex: Exception => {
+            case ex: Exception =>
               System.err.println(cmd.substring(1) + ": " + ex.getLocalizedMessage)
-            }
           }
-        }
-        case e: IOException => {
+        case e: IOException =>
           exitCode = -1
           var content: String = e.getLocalizedMessage
           if (content != null) {
             content = content.split("\n")(0)
           }
           System.err.println(cmd.substring(1) + ": " + content)
-        }
       }
     })
     exitCode
@@ -440,22 +436,19 @@ class SnackFSShell extends FsShell {
         rename(argument, dest)
       }
       catch {
-        case e: RemoteException => {
+        case e: RemoteException =>
           exitCode = -1
           try {
             val content: Array[String] = e.getLocalizedMessage.split("\n")
             System.err.println(cmd.substring(1) + ": " + content(0))
           }
           catch {
-            case ex: Exception => {
+            case ex: Exception =>
               System.err.println(cmd.substring(1) + ": " + ex.getLocalizedMessage)
-            }
           }
-        }
-        case e: IOException => {
+        case e: IOException =>
           exitCode = -1
           System.err.println(cmd.substring(1) + ": " + e.getLocalizedMessage)
-        }
       }
     })
     exitCode
@@ -488,22 +481,19 @@ class SnackFSShell extends FsShell {
         copy(argument, dest, conf)
       }
       catch {
-        case e: RemoteException => {
+        case e: RemoteException =>
           exitCode = -1
           try {
             val content: Array[String] = e.getLocalizedMessage.split("\n")
             System.err.println(cmd.substring(1) + ": " + content(0))
           }
           catch {
-            case ex: Exception => {
+            case ex: Exception =>
               System.err.println(cmd.substring(1) + ": " + ex.getLocalizedMessage)
-            }
           }
-        }
-        case e: IOException => {
+        case e: IOException =>
           exitCode = -1
           System.err.println(cmd.substring(1) + ": " + e.getLocalizedMessage)
-        }
       }
     })
 
@@ -525,10 +515,9 @@ class SnackFSShell extends FsShell {
       src = parameters.get(0)
     }
     catch {
-      case iae: IllegalArgumentException => {
+      case iae: IllegalArgumentException =>
         System.err.println("Usage: java " + classOf[SnackFSShell].getSimpleName + " -tail <src>")
         throw iae
-      }
     }
     path = new Path(src)
     val srcFs: FileSystem = path.getFileSystem(getConf)
@@ -585,14 +574,14 @@ class SnackFSShell extends FsShell {
       init()
     }
     catch {
-      case v: RPC.VersionMismatch => {
+      case v: RPC.VersionMismatch =>
         System.err.println("Version Mismatch between client and server" + "... command aborted.")
         return exitCode
-      }
-      case e: IOException => {
+
+      case e: IOException =>
         System.err.println("Bad connection to FS. command aborted. exception: " + e.getLocalizedMessage)
         return exitCode
-      }
+
     }
     exitCode = 0
     try {
@@ -702,31 +691,26 @@ class SnackFSShell extends FsShell {
       }
     }
     catch {
-      case arge: IllegalArgumentException => {
+      case arge: IllegalArgumentException =>
         exitCode = -1
         System.err.println(cmd.substring(1) + ": " + arge.getLocalizedMessage)
         printUsage(cmd)
-      }
-      case e: RemoteException => {
+      case e: RemoteException =>
         exitCode = -1
         try {
           val content: Array[String] = e.getLocalizedMessage.split("\n")
           System.err.println(cmd.substring(1) + ": " + content(0))
         }
         catch {
-          case ex: Exception => {
+          case ex: Exception =>
             System.err.println(cmd.substring(1) + ": " + ex.getLocalizedMessage)
-          }
         }
-      }
-      case e: IOException => {
+      case e: IOException =>
         exitCode = -1
         System.err.println(cmd.substring(1) + ": " + e.getLocalizedMessage)
-      }
-      case re: Exception => {
+      case re: Exception =>
         exitCode = -1
         System.err.println(cmd.substring(1) + ": " + re.getLocalizedMessage)
-      }
     }
     finally {
     }
