@@ -30,75 +30,13 @@ import org.apache.hadoop.io.IOUtils
 
 class SnackFSShell extends FsShell {
 
-  private val SETREP_SHORT_USAGE: String = "-setrep [-R] [-w] <rep> <path/file>"
-  private val GET_SHORT_USAGE: String = "-get [-ignoreCrc] [-crc] <src> <localdst>"
-  private val COPYTOLOCAL_SHORT_USAGE: String = GET_SHORT_USAGE.replace("-get", "-copyToLocal")
-  private val TAIL_USAGE: String = "-tail [-f] <file>"
-
   val dateForm: SimpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm")
 
-  private val trash: Trash = null
-
   private def printUsage(cmd: String) = {
-    val unsupported: String = "This command is not supported"
+    val notSupported: String = "This command is not supported"
     val prefix: String = "Usage: java " + classOf[SnackFSShell].getSimpleName
-    if ("-fs" == cmd) {
-      System.err.println(prefix + " [-fs <local | file system URI>]")
-    }
-    else if ("-conf" == cmd) {
-      //      System.err.println("Usage: java FsShell" + " [-conf <configuration file>]")
-      System.err.println(unsupported)
-    }
-    else if ("-D" == cmd) {
-      //      System.err.println("Usage: java FsShell" + " [-D <[property=value>]")
-      System.err.println(unsupported)
-    }
-    else if (("-ls" == cmd) || ("-lsr" == cmd) || ("-du" == cmd) || ("-dus" == cmd) || ("-touchz" == cmd) || ("-mkdir" == cmd) || ("-text" == cmd)) {
-      System.err.println(prefix + " [" + cmd + " <path>]")
-    }
-    else if ("-df" == cmd) {
-      System.err.println(unsupported)
-    }
-    else if (Count.matches(cmd)) {
-      System.err.println(prefix + " [" + Count.USAGE + "]")
-    }
-    else if (("-rm" == cmd) || ("-rmr" == cmd)) {
-      System.err.println(prefix + " [" + cmd + " <src>]")
-    }
-    else if (("-mv" == cmd) || ("-cp" == cmd)) {
-      System.err.println(prefix + " [" + cmd + " <src> <dst>]")
-    }
-    else if (("-put" == cmd) || ("-copyFromLocal" == cmd) || ("-moveFromLocal" == cmd)) {
-      System.err.println(prefix + " [" + cmd + " <localsrc> ... <dst>]")
-    }
-    else if ("-get" == cmd) {
-      System.err.println(prefix + " [" + GET_SHORT_USAGE + "]")
-    }
-    else if ("-copyToLocal" == cmd) {
-      System.err.println(prefix + " [" + COPYTOLOCAL_SHORT_USAGE + "]")
-    }
-    else if ("-moveToLocal" == cmd) {
-      System.err.println(unsupported)
-    }
-    else if ("-cat" == cmd) {
-      System.err.println(prefix + " [" + cmd + " <src>]")
-    }
-    else if ("-setrep" == cmd) {
-      //      System.err.println(prefix+" [" + SETREP_SHORT_USAGE + "]")
-      System.err.println(unsupported)
-    }
-    else if ("-test" == cmd) {
-      System.err.println(prefix + " [-test -[ezd] <path>]")
-    }
-    else if ("-stat" == cmd) {
-      System.err.println(prefix + " [-stat [format] <path>]")
-    }
-    else if ("-tail" == cmd) {
-      System.err.println(prefix + " [" + TAIL_USAGE + "]")
-    }
-    else {
+    if (cmd.isEmpty) {
       System.err.println(prefix)
-      //TODO check if getmerge works and text snd test
       val commandList = """|           [-ls <path>]
                           |           [-lsr <path>]
                           |           [-df [<path>]]
@@ -120,10 +58,31 @@ class SnackFSShell extends FsShell {
                           |           [-touchz <path>]
                           |           [-test -[ezd] <path>]
                           |           [-stat [format] <path>]
-                          |           [-tail [-f] <file>]
+                          |           [-tail <src>]
                           |           [-help [cmd]]
                           | """
       System.err.println(commandList.stripMargin)
+    } else {
+      cmd.tail match {
+        case "ls" | "lsr" | "du" | "dus" | "touchz" | "mkdir" | "text" =>
+          System.err.println(prefix + " [" + cmd + " <path>]")
+        case "count" =>
+          System.err.println(prefix + " [" + Count.USAGE + "]")
+        case "rm" | "rmr" | "cat" | "tail" =>
+          System.err.println(prefix + " [" + cmd + " <src>]")
+        case "mv" | "cp" =>
+          System.err.println(prefix + " [" + cmd + " <src> <dst>]")
+        case "put" | "copyFromLocal" =>
+          System.err.println(prefix + " [" + cmd + " <localsrc> ... <dst>]")
+        case "get" | "copyToLocal" =>
+          System.err.println(prefix + " [" + cmd + " [-ignoreCrc] [-crc] <src> <localdst>]")
+        case "test" =>
+          System.err.println(prefix + " [-test -[ezd] <path>]")
+        case "stat" =>
+          System.err.println(prefix + " [-stat [format] <path>]")
+        case _ =>
+          System.err.println(notSupported)
+      }
     }
   }
 
@@ -168,7 +127,7 @@ class SnackFSShell extends FsShell {
                            |		Equivalent to the Unix command "rm <src>"
                            | """
 
-    val rmrHelp: String = """|-rmr [-skipTrash] <src>: 	Remove all directories which match the specified file
+    val rmrHelp: String = """|-rmr <src>: 	Remove all directories which match the specified file
                             |		pattern. Equivalent to the Unix command "rm -rf <src>"
                             | """
 
@@ -207,7 +166,7 @@ class SnackFSShell extends FsShell {
                                |		in a file at <path>. An error is returned if the file exists with non-zero length
                                | """
 
-    val testHelp: String = """|-test -[ezd] <path>: If file { exists, has zero length, is a directory
+    val testHelp: String = """|-test -[ezd] <path>: If file exists,or has zero length, or is a directory
                              |		then return 0, else return 1.
                              | """
 
@@ -255,7 +214,7 @@ class SnackFSShell extends FsShell {
   }
 
   private def printHelp(cmd: String) = {
-    val unsupported: String = "This command is not supported"
+    val notSupported: String = "This command is not supported"
 
     val glossary = getCommandGlossary
     if (cmd.trim.isEmpty) {
@@ -265,7 +224,7 @@ class SnackFSShell extends FsShell {
     } else if (glossary.keys.toList.contains(cmd)) {
       println(glossary(cmd).stripMargin)
     } else {
-      println(unsupported)
+      println(notSupported)
     }
   }
 
@@ -387,11 +346,7 @@ class SnackFSShell extends FsShell {
 
     var exitCode: Int = 0
     var i: Int = startindex
-    var rmSkipTrash: Boolean = false
-    if ((("-rm" == cmd) || ("-rmr" == cmd)) && ("-skipTrash" == argv(i))) {
-      rmSkipTrash = true
-      i += 1
-    }
+    val rmSkipTrash: Boolean = true
 
     val params = argv.slice(i, argv.length)
 
@@ -463,7 +418,7 @@ class SnackFSShell extends FsShell {
    * the argvp[] array.
    * If multiple source files are specified, then the destination
    * must be a directory. Otherwise, IOException is thrown.
-   * @exception: IOException
+   * exception: IOException
    */
   private def rename(argv: Array[String], conf: Configuration): Int = {
     var i: Int = 0
@@ -512,7 +467,7 @@ class SnackFSShell extends FsShell {
    * the argvp[] array.
    * If multiple source files are specified, then the destination
    * must be a directory. Otherwise, IOException is thrown.
-   * @exception: IOException
+   * exception: IOException
    */
   private def copy(argv: Array[String], conf: Configuration): Int = {
     var exitCode: Int = -1
@@ -555,11 +510,6 @@ class SnackFSShell extends FsShell {
     exitCode
   }
 
-  private def expunge() {
-    trash.expunge()
-    trash.checkpoint()
-  }
-
   /**
    * Parse the incoming command string
    * @param cmd
@@ -567,7 +517,7 @@ class SnackFSShell extends FsShell {
    * @throws IOException
    */
   private def tail(cmd: Array[String], pos: Int) {
-    val c: CommandFormat = new CommandFormat("tail", 1, 1, "f")
+    val c: CommandFormat = new CommandFormat("tail", 1, 1)
     var src: String = null
     var path: Path = null
     try {
@@ -576,41 +526,23 @@ class SnackFSShell extends FsShell {
     }
     catch {
       case iae: IllegalArgumentException => {
-        System.err.println("Usage: java FsShell " + TAIL_USAGE)
+        System.err.println("Usage: java " + classOf[SnackFSShell].getSimpleName + " -tail <src>")
         throw iae
       }
     }
-    val foption: Boolean = c.getOpt("f")
     path = new Path(src)
     val srcFs: FileSystem = path.getFileSystem(getConf)
     if (srcFs.isDirectory(path)) {
       throw new IOException("Source must be a file.")
     }
-    var fileSize: Long = srcFs.getFileStatus(path).getLen
+    val fileSize: Long = srcFs.getFileStatus(path).getLen
     var offset: Long = if (fileSize > 1024) fileSize - 1024 else 0
 
-    //TODO didnt understand the part where `true` is passed in while loop
-    while (true) {
-      val in: FSDataInputStream = srcFs.open(path)
-      in.seek(offset)
-      IOUtils.copyBytes(in, System.out, 1024, false)
-      offset = in.getPos
-      in.close()
-      if (foption) {
-        fileSize = srcFs.getFileStatus(path).getLen
-        offset = if (fileSize > offset) offset else fileSize
-
-        //TODO didnt understand why this is done
-        try {
-          Thread.sleep(5000)
-        }
-        catch {
-          case e: InterruptedException => {
-            throw e
-          }
-        }
-      }
-    }
+    val in: FSDataInputStream = srcFs.open(path)
+    in.seek(offset)
+    IOUtils.copyBytes(in, System.out, 1024, false)
+    offset = in.getPos
+    in.close()
   }
 
   /**
@@ -668,10 +600,6 @@ class SnackFSShell extends FsShell {
         val srcs = copyReqdArgs(argv)
         copyFromLocal(srcs, argv(argv.length - 1))
       }
-      else if ("-moveFromLocal" == cmd) {
-        val srcs = copyReqdArgs(argv)
-        moveFromLocal(srcs, argv(argv.length - 1))
-      }
       else if (("-get" == cmd) || ("-copyToLocal" == cmd)) {
         copyToLocal(argv, i)
       }
@@ -687,14 +615,6 @@ class SnackFSShell extends FsShell {
       else if ("-text" == cmd) {
         exitCode = doall(cmd, argv, i)
       }
-      else if ("-moveToLocal" == cmd) {
-        moveToLocal(argv(i), new Path(argv(i + 1)))
-      }
-
-      /* Not possible -- in Cassandra replication factor can be set only for a keyspace not row level
-      else if ("-setrep" == cmd) {
-         setReplication(argv, i)
-       }*/
 
       //TODO -- persmission related operations
       /*else if (("-chmod" == cmd) || ("-chown" == cmd) || ("-chgrp" == cmd)) {
@@ -728,9 +648,6 @@ class SnackFSShell extends FsShell {
       }
       else if ("-rmr" == cmd) {
         exitCode = doall(cmd, argv, i)
-      }
-      else if ("-expunge" == cmd) {
-        expunge()
       }
       else if ("-du" == cmd) {
         if (i < argv.length) {
