@@ -39,7 +39,7 @@ class SnackFSShell extends FsShell {
 
   private val trash: Trash = null
 
-  private def printUsage(cmd: String) {
+  private def printUsage(cmd: String) = {
     val unsupported: String = "This command is not supported"
     val prefix: String = "Usage: java " + classOf[SnackFSShell].getSimpleName
     if ("-fs" == cmd) {
@@ -57,13 +57,13 @@ class SnackFSShell extends FsShell {
       System.err.println(prefix + " [" + cmd + " <path>]")
     }
     else if ("-df" == cmd) {
-      System.err.println(prefix + " [" + cmd + " [<path>]]")
+      System.err.println(unsupported)
     }
     else if (Count.matches(cmd)) {
       System.err.println(prefix + " [" + Count.USAGE + "]")
     }
     else if (("-rm" == cmd) || ("-rmr" == cmd)) {
-      System.err.println(prefix + " [" + cmd + " [-skipTrash] <src>]")
+      System.err.println(prefix + " [" + cmd + " <src>]")
     }
     else if (("-mv" == cmd) || ("-cp" == cmd)) {
       System.err.println(prefix + " [" + cmd + " <src> <dst>]")
@@ -78,7 +78,7 @@ class SnackFSShell extends FsShell {
       System.err.println(prefix + " [" + COPYTOLOCAL_SHORT_USAGE + "]")
     }
     else if ("-moveToLocal" == cmd) {
-      System.err.println(prefix + " [" + cmd + " [-crc] <src> <localdst>]")
+      System.err.println(unsupported)
     }
     else if ("-cat" == cmd) {
       System.err.println(prefix + " [" + cmd + " <src>]")
@@ -98,222 +98,174 @@ class SnackFSShell extends FsShell {
     }
     else {
       System.err.println(prefix)
-      System.err.println("           [-ls <path>]")
-      System.err.println("           [-lsr <path>]")
-      System.err.println("           [-df [<path>]]")
-      System.err.println("           [-du <path>]")
-      System.err.println("           [-dus <path>]")
-      System.err.println("           [" + Count.USAGE + "]")
-      System.err.println("           [-mv <src> <dst>]")
-      System.err.println("           [-cp <src> <dst>]")
-      System.err.println("           [-rm [-skipTrash] <path>]")
-      System.err.println("           [-rmr [-skipTrash] <path>]")
-      System.err.println("           [-expunge]")
-      System.err.println("           [-put <localsrc> ... <dst>]")
-      System.err.println("           [-copyFromLocal <localsrc> ... <dst>]")
-      System.err.println("           [-moveFromLocal <localsrc> ... <dst>]")
-      System.err.println("           [" + GET_SHORT_USAGE + "]")
-      System.err.println("           [-getmerge <src> <localdst> [addnl]]")
-      System.err.println("           [-cat <src>]")
-      System.err.println("           [-text <src>]")
-      System.err.println("           [" + COPYTOLOCAL_SHORT_USAGE + "]")
-      System.err.println("           [-moveToLocal [-crc] <src> <localdst>]")
-      System.err.println("           [-mkdir <path>]")
-      //      System.err.println("           [" + SETREP_SHORT_USAGE + "]")
-      System.err.println("           [-touchz <path>]")
-      System.err.println("           [-test -[ezd] <path>]")
-      System.err.println("           [-stat [format] <path>]")
-      System.err.println("           [" + TAIL_USAGE + "]")
-      /* System.err.println("           [" + FsShellPermissions.CHMOD_USAGE + "]")
-       System.err.println("           [" + FsShellPermissions.CHOWN_USAGE + "]")
-       System.err.println("           [" + FsShellPermissions.CHGRP_USAGE + "]")*/
-      System.err.println("           [-help [cmd]]")
-      System.err.println()
-      //      ToolRunner.printGenericCommandUsage(System.err)
+      //TODO check if getmerge works and text snd test
+      val commandList = """|           [-ls <path>]
+                          |           [-lsr <path>]
+                          |           [-df [<path>]]
+                          |           [-du <path>]
+                          |           [-dus <path>]
+                          |           [-count[-q] <path>]
+                          |           [-mv <src> <dst>]
+                          |           [-cp <src> <dst>]
+                          |           [-rm <path>]
+                          |           [-rmr <path>]
+                          |           [-put <localsrc> ... <dst>]
+                          |           [-copyFromLocal <localsrc> ... <dst>]
+                          |           [-get [-ignoreCrc] [-crc] <src> <localdst>]
+                          |           [-getmerge <src> <localdst> [addnl]]
+                          |           [-cat <src>]
+                          |           [-text <src>]
+                          |           [-copyToLocal [-ignoreCrc] [-crc] <src> <localdst>]
+                          |           [-mkdir <path>]
+                          |           [-touchz <path>]
+                          |           [-test -[ezd] <path>]
+                          |           [-stat [format] <path>]
+                          |           [-tail [-f] <file>]
+                          |           [-help [cmd]]
+                          | """
+      System.err.println(commandList.stripMargin)
     }
   }
 
-  private def printHelp(cmd: String) {
-    val unsupported: String = "This command is not supported"
+  private def getCommandGlossary: Map[String, String] = {
+    val lsHelp: String = """|-ls <path>: 	List the contents that match the specified file pattern. If
+                           |		path is not specified, the contents of /user/<currentUser>
+                           |		will be listed. Directory entries are of the form
+                           |			dirName (full path) <dir>
+                           |		and file entries are of the form
+                           |			fileName(full path) <r n> size
+                           |		where n is the number of replicas specified for the file
+                           |		and size is the size of the file, in bytes."""
 
-    val summary: String = "snackfs fs is the command to execute fs commands. " +
-      "The full syntax is: \n\n" + "snackfs fs [-fs <local | file system URI>]" +
-      //      " [-conf <configuration file>]\n\t" + "[-D <property=value>]" +
-      " \n\t[-ls <path>] [-lsr <path>] [-du <path>]\n\t" +
-      "[-dus <path>] [-mv <src> <dst>] [-cp <src> <dst>] [-rm [-skipTrash] <src>]\n\t" +
-      "[-rmr [-skipTrash] <src>] [-put <localsrc> ... <dst>] [-copyFromLocal <localsrc> ... <dst>]\n\t" +
-      "[-moveFromLocal <localsrc> ... <dst>] [" + GET_SHORT_USAGE + "\n\t" +
-      "[-getmerge <src> <localdst> [addnl]] [-cat <src>]\n\t" +
-      "[" + COPYTOLOCAL_SHORT_USAGE + "] [-moveToLocal <src> <localdst>]\n\t" +
-      "[-mkdir <path>] [-report] [" + SETREP_SHORT_USAGE + "]\n\t" +
-      "[-touchz <path>] [-test -[ezd] <path>] [-stat [format] <path>]\n\t" +
-      "[-tail [-f] <path>] [-text <path>]\n\t" +
-      //"[" + FsShellPermissions.CHMOD_USAGE + "]\n\t" + "[" + FsShellPermissions.CHOWN_USAGE + "]\n\t" + "[" + FsShellPermissions.CHGRP_USAGE + "]\n\t" +
-      "[" + Count.USAGE + "]\n\t" + "[-help [cmd]]\n"
+    val lsrHelp: String = """|-lsr <path>: 	Recursively list the contents that match the specified
+                            |		file pattern.  Behaves similar to snackfs -ls,
+                            |		except that the data is shown for all the entries in the
+                            |		subtree.
+                            | """
 
-    /*val conf: String = "-conf <configuration file>:  Specify an application configuration file."
-    val D: String = "-D <property=value>:  Use value for given property."*/
-    val fs: String = "-fs [local | <file system URI>]: \tSpecify the file system to use.\n" + "\t\tIf not specified, the current configuration is used, \n" + "\t\ttaken from the following, in increasing precedence: \n" + "\t\t\tcore-default.xml inside the hadoop jar file \n" + "\t\t\tcore-site.xml in $HADOOP_CONF_DIR \n" + "\t\t'local' means use the local file system as your DFS. \n" + "\t\t<file system URI> specifies a particular file system to \n" + "\t\tcontact. This argument is optional but if used must appear\n" + "\t\tappear first on the command line.  Exactly one additional\n" + "\t\targument must be specified. \n"
-    val ls: String = "-ls <path>: \tList the contents that match the specified file pattern. If\n" + "\t\tpath is not specified, the contents of /user/<currentUser>\n" + "\t\twill be listed. Directory entries are of the form \n" + "\t\t\tdirName (full path) <dir> \n" + "\t\tand file entries are of the form \n" + "\t\t\tfileName(full path) <r n> size \n" + "\t\twhere n is the number of replicas specified for the file \n" + "\t\tand size is the size of the file, in bytes.\n"
-    val lsr: String = "-lsr <path>: \tRecursively list the contents that match the specified\n" + "\t\tfile pattern.  Behaves very similarly to snackfs fs -ls,\n" + "\t\texcept that the data is shown for all the entries in the\n" + "\t\tsubtree.\n"
-    val du: String = "-du <path>: \tShow the amount of space, in bytes, used by the files that \n" + "\t\tmatch the specified file pattern.  Equivalent to the unix\n" + "\t\tcommand \"du -sb <path>/*\" in case of a directory, \n" + "\t\tand to \"du -b <path>\" in case of a file.\n" + "\t\tThe output is in the form \n" + "\t\t\tname(full path) size (in bytes)\n"
-    val dus: String = "-dus <path>: \tShow the amount of space, in bytes, used by the files that \n" + "\t\tmatch the specified file pattern.  Equivalent to the unix\n" + "\t\tcommand \"du -sb\"  The output is in the form \n" + "\t\t\tname(full path) size (in bytes)\n"
-    val mv: String = "-mv <src> <dst>:   Move files that match the specified file pattern <src>\n" + "\t\tto a destination <dst>.  When moving multiple files, the \n" + "\t\tdestination must be a directory. \n"
-    val cp: String = "-cp <src> <dst>:   Copy files that match the file pattern <src> to a \n" + "\t\tdestination.  When copying multiple files, the destination\n" + "\t\tmust be a directory. \n"
-    val rm: String = "-rm [-skipTrash] <src>: \tDelete all files that match the specified file pattern.\n" + "\t\tEquivalent to the Unix command \"rm <src>\"\n" + "\t\t-skipTrash option bypasses trash, if enabled, and immediately\n" + "deletes <src>"
-    val rmr: String = "-rmr [-skipTrash] <src>: \tRemove all directories which match the specified file \n" + "\t\tpattern. Equivalent to the Unix command \"rm -rf <src>\"\n" + "\t\t-skipTrash option bypasses trash, if enabled, and immediately\n" + "deletes <src>"
-    val put: String = "-put <localsrc> ... <dst>: \tCopy files " + "from the local file system \n\t\tinto fs. \n"
-    val copyFromLocal: String = "-copyFromLocal <localsrc> ... <dst>:" + " Identical to the -put command.\n"
-    val moveFromLocal: String = "-moveFromLocal <localsrc> ... <dst>:" + " Same as -put, except that the source is\n\t\tdeleted after it's copied.\n"
-    val get: String = GET_SHORT_USAGE + ":  Copy files that match the file pattern <src> \n" + "\t\tto the local name.  <src> is kept.  When copying mutiple, \n" + "\t\tfiles, the destination must be a directory. \n"
-    val getmerge: String = "-getmerge <src> <localdst>:  Get all the files in the directories that \n" + "\t\tmatch the source file pattern and merge and sort them to only\n" + "\t\tone file on local fs. <src> is kept.\n"
-    val cat: String = "-cat <src>: \tFetch all files that match the file pattern <src> \n" + "\t\tand display their content on stdout.\n"
-    val text: String = "-text <src>: \tTakes a source file and outputs the file in text format.\n" + "\t\tThe allowed formats are zip and TextRecordInputStream.\n"
-    val copyToLocal: String = COPYTOLOCAL_SHORT_USAGE + ":  Identical to the -get command.\n"
-    val moveToLocal: String = "-moveToLocal <src> <localdst>:  Not implemented yet \n"
-    val mkdir: String = "-mkdir <path>: \tCreate a directory in specified location. \n"
-    //    val setrep: String = SETREP_SHORT_USAGE + ":  Set the replication level of a file. \n" + "\t\tThe -R flag requests a recursive change of replication level \n" + "\t\tfor an entire tree.\n"
-    val touchz: String = "-touchz <path>: Write a timestamp in yyyy-MM-dd HH:mm:ss format\n" + "\t\tin a file at <path>. An error is returned if the file exists with non-zero length\n"
-    val test: String = "-test -[ezd] <path>: If file { exists, has zero length, is a directory\n" + "\t\tthen return 0, else return 1.\n"
-    val stat: String = "-stat [format] <path>: Print statistics about the file/directory at <path>\n" + "\t\tin the specified format. Format accepts filesize in blocks (%b), filename (%n),\n" + "\t\tblock size (%o), replication (%r), modification date (%y, %Y)\n"
-    val tail: String = TAIL_USAGE + ":  Show the last 1KB of the file. \n" + "\t\tThe -f option shows apended data as the file grows. \n"
+    val duHelp: String = """|-du <path>: 	Show the amount of space, in bytes, used by the files that
+                           |		match the specified file pattern.  Equivalent to the unix
+                           |		command "du -sb <path>/*" in case of a directory,
+                           |		and to "du -b <path>" in case of a file.
+                           |		The output is in the form
+                           |			name(full path) size (in bytes)"""
+
+    val dusHelp: String = """|-dus <path>: 	Show the amount of space, in bytes, used by the files that
+                            |		match the specified file pattern.  Equivalent to the unix
+                            |		command "du -sb"  The output is in the form
+                            |			name(full path) size (in bytes)
+                            | """
+
+    val mvHelp: String = """|-mv <src> <dst>:   Move files that match the specified file pattern <src>
+                           |		to a destination <dst>.  When moving multiple files, the
+                           |		destination must be a directory."""
+
+    val cpHelp: String = """|-cp <src> <dst>:   Copy files that match the file pattern <src> to a
+                           |		destination.  When copying multiple files, the destination
+                           |		must be a directory. """
+
+    val rmHelp: String = """|-rm <src>: 	Delete all files that match the specified file pattern.
+                           |		Equivalent to the Unix command "rm <src>"
+                           | """
+
+    val rmrHelp: String = """|-rmr [-skipTrash] <src>: 	Remove all directories which match the specified file
+                            |		pattern. Equivalent to the Unix command "rm -rf <src>"
+                            | """
+
+    val putHelp: String = """|-put <localsrc> ... <dst>: 	Copy files from the local file system
+                            |		into fs.
+                            | """
+
+    val copyFromLocalHelp: String = """|-copyFromLocal <localsrc> ... <dst>: Identical to the -put command.
+                                      | """
+
+    val getHelp: String = """|-get [-ignoreCrc] [-crc] <src> <localdst>:  Copy files that match the file pattern <src>
+                            |		to the local name.  <src> is kept.  When copying mutiple,
+                            |		files, the destination must be a directory.
+                            | """
+
+    val getmergeHelp: String = """|-getmerge <src> <localdst>:  Get all the files in the directories that
+                                 |		match the source file pattern and merge and sort them to only
+                                 |		one file on local fs. <src> is kept.
+                                 | """
+
+    val catHelp: String = """|-cat <src>: 	Fetch all files that match the file pattern <src>
+                            |		and display their content on stdout.
+                            | """
+
+    val textHelp: String = """|-text <src>: 	Takes a source file and outputs the file in text format.
+                             |		The allowed formats are zip and TextRecordInputStream.
+                             | """
+
+    val copyToLocalHelp: String = """|-copyToLocal [-ignoreCrc] [-crc] <src> <localdst>:  Identical to the -get command.
+                                    | """
+
+    val mkdirHelp: String = """|-mkdir <path>: 	Create a directory in specified location.
+                              | """
+
+    val touchzHelp: String = """|-touchz <path>: Write a timestamp in yyyy-MM-dd HH:mm:ss format
+                               |		in a file at <path>. An error is returned if the file exists with non-zero length
+                               | """
+
+    val testHelp: String = """|-test -[ezd] <path>: If file { exists, has zero length, is a directory
+                             |		then return 0, else return 1.
+                             | """
+
+    val statHelp: String = """|-stat [format] <path>: Print statistics about the file/directory at <path>
+                             |		in the specified format. Format accepts filesize in blocks (%b), filename (%n),
+                             |		block size (%o), replication (%r), modification date (%y, %Y)
+                             | """
+
+    val tailHelp: String = """|-tail <file>:  Show the last 1KB of the file.
+                             | """
+
     /*val chmod: String = FsShellPermissions.CHMOD_USAGE + "\n" + "\t\tChanges permissions of a file.\n" + "\t\tThis works similar to shell's chmod with a few exceptions.\n\n" + "\t-R\tmodifies the files recursively. This is the only option\n" + "\t\tcurrently supported.\n\n" + "\tMODE\tMode is same as mode used for chmod shell command.\n" + "\t\tOnly letters recognized are 'rwxX'. E.g. a+r,g-w,+rwx,o=r\n\n" + "\tOCTALMODE Mode specifed in 3 digits. Unlike shell command,\n" + "\t\tthis requires all three digits.\n" + "\t\tE.g. 754 is same as u=rwx,g=rx,o=r\n\n" + "\t\tIf none of 'augo' is specified, 'a' is assumed and unlike\n" + "\t\tshell command, no umask is applied.\n"
     val chown: String = FsShellPermissions.CHOWN_USAGE + "\n" + "\t\tChanges owner and group of a file.\n" + "\t\tThis is similar to shell's chown with a few exceptions.\n\n" + "\t-R\tmodifies the files recursively. This is the only option\n" + "\t\tcurrently supported.\n\n" + "\t\tIf only owner or group is specified then only owner or\n" + "\t\tgroup is modified.\n\n" + "\t\tThe owner and group names may only cosists of digits, alphabet,\n" + "\t\tand any of '-_.@/' i.e. [-_.@/a-zA-Z0-9]. The names are case\n" + "\t\tsensitive.\n\n" + "\t\tWARNING: Avoid using '.' to separate user name and group though\n" + "\t\tLinux allows it. If user names have dots in them and you are\n" + "\t\tusing local file system, you might see surprising results since\n" + "\t\tshell command 'chown' is used for local files.\n"
     val chgrp: String = FsShellPermissions.CHGRP_USAGE + "\n" + "\t\tThis is equivalent to -chown ... :GROUP ...\n"*/
-    val help: String = "-help [cmd]: \tDisplays help for given command or all commands if none\n" + "\t\tis specified.\n"
-    if ("fs" == cmd) {
-      System.out.println(fs)
-    }
-    else if ("conf" == cmd) {
-      //      System.out.println(conf)
-      System.out.println(unsupported)
-    }
-    else if ("D" == cmd) {
-      //      System.out.println(D)
-      System.out.println(unsupported)
-    }
-    else if ("ls" == cmd) {
-      System.out.println(ls)
-    }
-    else if ("lsr" == cmd) {
-      System.out.println(lsr)
-    }
-    else if ("du" == cmd) {
-      System.out.println(du)
-    }
-    else if ("dus" == cmd) {
-      System.out.println(dus)
-    }
-    else if ("rm" == cmd) {
-      System.out.println(rm)
-    }
-    else if ("rmr" == cmd) {
-      System.out.println(rmr)
-    }
-    else if ("mkdir" == cmd) {
-      System.out.println(mkdir)
-    }
-    else if ("mv" == cmd) {
-      System.out.println(mv)
-    }
-    else if ("cp" == cmd) {
-      System.out.println(cp)
-    }
-    else if ("put" == cmd) {
-      System.out.println(put)
-    }
-    else if ("copyFromLocal" == cmd) {
-      System.out.println(copyFromLocal)
-    }
-    else if ("moveFromLocal" == cmd) {
-      System.out.println(moveFromLocal)
-    }
-    else if ("get" == cmd) {
-      System.out.println(get)
-    }
-    else if ("getmerge" == cmd) {
-      System.out.println(getmerge)
-    }
-    else if ("copyToLocal" == cmd) {
-      System.out.println(copyToLocal)
-    }
-    else if ("moveToLocal" == cmd) {
-      System.out.println(moveToLocal)
-    }
-    else if ("cat" == cmd) {
-      System.out.println(cat)
-    }
-    else if ("get" == cmd) {
-      System.out.println(get)
-    }
-    else if ("setrep" == cmd) {
-      //      System.out.println(setrep)
-      System.out.println(unsupported)
-    }
-    else if ("touchz" == cmd) {
-      System.out.println(touchz)
-    }
-    else if ("test" == cmd) {
-      System.out.println(test)
-    }
-    else if ("text" == cmd) {
-      System.out.println(text)
-    }
-    else if ("stat" == cmd) {
-      System.out.println(stat)
-    }
-    else if ("tail" == cmd) {
-      System.out.println(tail)
-    }
-    else if ("chmod" == cmd) {
-      //       System.out.println(chmod)
-      System.out.println(unsupported)
-    }
-    else if ("chown" == cmd) {
-      //       System.out.println(chown)
-      System.out.println(unsupported)
-    }
-    else if ("chgrp" == cmd) {
-      //       System.out.println(chgrp)
-      System.out.println(unsupported)
-    }
-    else if (Count.matches(cmd)) {
-      System.out.println(Count.DESCRIPTION)
-    }
-    else if ("help" == cmd) {
-      System.out.println(help)
-    }
-    else {
-      System.out.println(summary)
-      System.out.println(fs)
-      System.out.println(ls)
-      System.out.println(lsr)
-      System.out.println(du)
-      System.out.println(dus)
-      System.out.println(mv)
-      System.out.println(cp)
-      System.out.println(rm)
-      System.out.println(rmr)
-      System.out.println(put)
-      System.out.println(copyFromLocal)
-      System.out.println(moveFromLocal)
-      System.out.println(get)
-      System.out.println(getmerge)
-      System.out.println(cat)
-      System.out.println(copyToLocal)
-      System.out.println(moveToLocal)
-      System.out.println(mkdir)
-      //      System.out.println(setrep)
-      System.out.println(tail)
-      System.out.println(touchz)
-      System.out.println(test)
-      System.out.println(text)
-      System.out.println(stat)
-      /* System.out.println(chmod)
-       System.out.println(chown)
-       System.out.println(chgrp)*/
-      System.out.println(Count.DESCRIPTION)
-      System.out.println(help)
+
+    val helpHelp: String = """|-help [cmd]: 	Displays help for given command or all commands if none
+                             |		is specified.
+                             | """
+
+    val cmdHelpMap = Map(
+      "ls" -> lsHelp,
+      "lsr" -> lsrHelp,
+      "du" -> duHelp,
+      "dus" -> dusHelp,
+      "mv" -> mvHelp,
+      "cp" -> cpHelp,
+      "rm" -> rmHelp,
+      "rmr" -> rmrHelp,
+      "put" -> putHelp,
+      "copyFromLocal" -> copyFromLocalHelp,
+      "get" -> getHelp,
+      "getmerge" -> getmergeHelp,
+      "cat" -> catHelp,
+      "text" -> textHelp,
+      "copyToLocal" -> copyToLocalHelp,
+      "mkdir" -> mkdirHelp,
+      "touchz" -> touchzHelp,
+      "test" -> testHelp,
+      "stat" -> statHelp,
+      "tail" -> tailHelp,
+      "help" -> helpHelp,
+      "count" -> Count.DESCRIPTION
+    )
+    cmdHelpMap
+  }
+
+  private def printHelp(cmd: String) = {
+    val unsupported: String = "This command is not supported"
+
+    val glossary = getCommandGlossary
+    if (cmd.trim.isEmpty) {
+      glossary.foreach {
+        case (command: String, help: String) => println(help.stripMargin)
+      }
+    } else if (glossary.keys.toList.contains(cmd)) {
+      println(glossary(cmd).stripMargin)
+    } else {
+      println(unsupported)
     }
   }
 
