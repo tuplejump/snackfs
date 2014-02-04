@@ -17,7 +17,7 @@
  *
  */
 
-package com.tuplejump.snackfs.model
+package com.tuplejump.snackfs.cassandra.model
 
 import org.apache.commons.pool.BasePoolableObjectFactory
 import org.apache.thrift.async.TAsyncClientManager
@@ -33,7 +33,7 @@ import com.twitter.logging.Logger
 
 class ClientPoolFactory(host: String, port: Int, keyspace: String) extends BasePoolableObjectFactory[ThriftClientAndSocket] {
 
-  private val log = Logger.get("com.tuplejump.snackfs.model.ClientPoolFactory")
+  private lazy val log = Logger.get(getClass)
 
   private val clientManager = new TAsyncClientManager()
   private val protocolFactory = new TBinaryProtocol.Factory()

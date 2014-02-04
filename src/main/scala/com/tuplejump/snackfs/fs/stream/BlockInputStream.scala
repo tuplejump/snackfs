@@ -16,17 +16,18 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.snackfs.fs
+package com.tuplejump.snackfs.fs.stream
 
 import java.io.{IOException, InputStream}
 import scala.concurrent.Await
 import scala.concurrent.duration._
-import com.tuplejump.snackfs.model.BlockMeta
 import com.twitter.logging.Logger
+import com.tuplejump.snackfs.fs.model._
+import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
 
 case class
 BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, atMost: FiniteDuration) extends InputStream {
-  private val log = Logger.get("com.tuplejump.snackfs.fs.BlockInputStream")
+  private lazy val log = Logger.get(getClass)
 
   private val LENGTH = blockMeta.length
 
@@ -97,7 +98,7 @@ BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, atMost: FiniteDur
     }
     var result = 0
     if (len > 0) {
-      while (result < len && currentPosition <= LENGTH - 1) {
+      while ((result < len) && (currentPosition <= LENGTH - 1)) {
         if (currentPosition > (targetSubBlockOffset + targetSubBlockSize - 1)) {
           if (inputStream != null) {
             inputStream.close()

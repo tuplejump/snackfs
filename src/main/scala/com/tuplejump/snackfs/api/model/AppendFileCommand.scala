@@ -16,13 +16,26 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.snackfs.model
+package com.tuplejump.snackfs.api.model
 
-import java.util.UUID
+import scala.concurrent.duration.FiniteDuration
+import java.io.IOException
+import org.apache.hadoop.fs.{FSDataOutputStream, Path}
+import org.apache.hadoop.util.Progressable
+import com.twitter.logging.Logger
+import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
 
-case class BlockMeta(id: UUID, offset: Long, length: Long, subBlocks: Seq[SubBlockMeta]) {
-  override def toString = {
-    val result = "Block[" + (id,offset,length).toString() + "]"
-    result
+object AppendFileCommand {
+  private lazy val log = Logger.get(getClass)
+
+  def apply(store: FileSystemStore,
+            filePath: Path,
+            bufferSize: Int,
+            progress: Progressable,
+            atMost: FiniteDuration): FSDataOutputStream = {
+
+    val ex = new IOException("Appending to existing file is not supported.")
+    log.error(ex, "Failed to append to file %s as it is not supported", filePath)
+    throw ex
   }
 }

@@ -425,7 +425,7 @@ class SnackFSShell extends FsShell {
     if (argv.length > 3) {
       val dst: Path = new Path(dest)
       val dstFs: FileSystem = dst.getFileSystem(getConf)
-      if (!dstFs.isDirectory(dst)) {
+      if (!dstFs.getFileStatus(dst).isDir) {
         throw new IOException("When moving multiple files, "
           + "destination " + dest + " should be a directory.")
       }
@@ -470,7 +470,7 @@ class SnackFSShell extends FsShell {
     val dest: String = argv(argv.length - 1)
     if (argv.length > 3) {
       val dst: Path = new Path(dest)
-      if (!fs.isDirectory(dst)) {
+      if (!fs.getFileStatus(dst).isDir) {
         throw new IOException("When copying multiple files, " + "destination " + dest + " should be a directory.")
       }
     }
@@ -521,7 +521,7 @@ class SnackFSShell extends FsShell {
     }
     path = new Path(src)
     val srcFs: FileSystem = path.getFileSystem(getConf)
-    if (srcFs.isDirectory(path)) {
+    if (srcFs.getFileStatus(path).isDir) {
       throw new IOException("Source must be a file.")
     }
     val fileSize: Long = srcFs.getFileStatus(path).getLen

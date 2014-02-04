@@ -16,7 +16,7 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.snackfs.fs
+package com.tuplejump.snackfs.cassandra.store
 
 import org.apache.cassandra.thrift.Cassandra.AsyncClient
 import org.apache.cassandra.thrift.Cassandra.AsyncClient._
@@ -34,8 +34,6 @@ import java.math.BigInteger
 import java.util.UUID
 import java.io.InputStream
 import com.tuplejump.snackfs.util.{LogConfiguration, AsyncUtil}
-import com.tuplejump.snackfs.model._
-import com.tuplejump.model.GenericOpSuccess
 import org.apache.cassandra.dht.Murmur3Partitioner
 import org.apache.thrift.async.TAsyncClientManager
 import org.apache.thrift.protocol.TBinaryProtocol
@@ -44,12 +42,21 @@ import org.apache.commons.pool.ObjectPool
 import org.apache.commons.pool.impl.StackObjectPool
 
 import com.twitter.logging.Logger
+import com.tuplejump.snackfs.fs.model._
+import com.tuplejump.snackfs.cassandra.model._
+import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
+import com.tuplejump.snackfs.fs.model.SubBlockMeta
+import com.tuplejump.snackfs.cassandra.model.ThriftClientAndSocket
+import com.tuplejump.snackfs.fs.stream.BlockInputStream
+import com.tuplejump.snackfs.fs.model.BlockMeta
+import com.tuplejump.snackfs.cassandra.model.GenericOpSuccess
+import com.tuplejump.snackfs.cassandra.model.Keyspace
 
 class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
   LogConfiguration.config()
 
-  private val log = Logger.get("com.tuplejump.snackfs.fs.ThriftStore")
+  private lazy val log = Logger.get(getClass)
   private val PATH_COLUMN: ByteBuffer = ByteBufferUtil.bytes("path")
   private val PARENT_PATH_COLUMN: ByteBuffer = ByteBufferUtil.bytes("parent_path")
   private val SENTINEL_COLUMN: ByteBuffer = ByteBufferUtil.bytes("sentinel")
@@ -92,33 +99,31 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
     val ksDefFuture = AsyncUtil.executeAsync[describe_keyspace_call](client.describe_keyspace(ksDef.getName, _))
 
     ksDefFuture onSuccess {
-      case p => {
+      case p =>
 
         val mayBeKsDef: Try[KsDef] = Try(p.getResult)
 
         if (mayBeKsDef.isSuccess) {
           log.debug("Using existing keyspace %s", ksDef.getName)
           prom success new Keyspace(ksDef.getName)
+
         } else {
           log.debug("Creating new keyspace %s", ksDef.getName)
           val response = AsyncUtil.executeAsync[system_add_keyspace_call](
             client.system_add_keyspace(ksDef, _))
 
           response.onSuccess {
-            case r => {
+            case r =>
               log.debug("Created keyspace %s", ksDef.getName)
               prom success new Keyspace(r.getResult)
-            }
-          }
 
-          response.onFailure {
-            case f => {
-              log.error(f, "Failed to create keyspace %s", f.getMessage)
-              prom failure f
-            }
+              response.onFailure {
+                case f =>
+                  log.error(f, "Failed to create keyspace %s", f.getMessage)
+                  prom failure f
+              }
           }
         }
-      }
     }
     prom.future
   }
@@ -126,11 +131,14 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
   def init {
     log.debug("initializing thrift store with configuration %s", configuration.toString)
     clientPool = new StackObjectPool[ThriftClientAndSocket](
-      new ClientPoolFactory(configuration.CassandraHost, configuration.CassandraPort, configuration.keySpace)) {
+      new ClientPoolFactory(configuration.CassandraHost, configuration.CassandraPort,
+        configuration.keySpace)) {
+
       override def close() {
         super.close()
-        getFactory.asInstanceOf[ClientPoolFactory].closePool
+        getFactory.asInstanceOf[ClientPoolFactory].closePool()
       }
+
     }
   }
 
@@ -138,18 +146,19 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
     client =>
       val prom = promise[Unit]()
       val dropFuture = AsyncUtil.executeAsync[system_drop_keyspace_call](client.system_drop_keyspace(configuration.keySpace, _))
+
       dropFuture onSuccess {
-        case p => {
+        case p =>
           log.debug("deleted keyspace %s", configuration.keySpace)
           prom success p.getResult
-        }
       }
+
       dropFuture onFailure {
-        case f => {
+        case f =>
           log.error(f, "failed to delete keyspace %s", configuration.keySpace)
           prom failure f
-        }
       }
+
       prom.future
   })
 
@@ -277,23 +286,24 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
       val iNodeFuture = AsyncUtil.executeAsync[batch_mutate_call](client.batch_mutate(mutationMap, configuration.writeConsistencyLevel, _))
       val prom = promise[GenericOpSuccess]()
       iNodeFuture.onSuccess {
-        case p => {
+        case p =>
           log.debug("stored INode %s", iNode.toString)
           prom success GenericOpSuccess()
-        }
       }
+
       iNodeFuture.onFailure {
-        case f => {
+        case f =>
           log.error(f, "failed to store INode %s", iNode.toString)
           prom failure f
-        }
       }
+
       prom.future
   })
 
   private def performGet(client: AsyncClient, key: ByteBuffer, columnPath: ColumnPath): Future[ColumnOrSuperColumn] = {
     val prom = promise[ColumnOrSuperColumn]()
     val getFuture = AsyncUtil.executeAsync[get_call](client.get(key, columnPath, configuration.readConsistencyLevel, _))
+
     getFuture.onSuccess {
       case p =>
         try {
@@ -306,11 +316,13 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
             prom failure e
         }
     }
+
     getFuture.onFailure {
       case f =>
         log.error(f, "failed to get INode/subblock data")
         prom failure f
     }
+
     prom.future
   }
 
@@ -322,11 +334,13 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
       val inodePromise = promise[INode]()
       log.debug("fetching Inode for path %s", path)
       val pathInfo = performGet(client, pathKey, inodeDataPath)
+
       pathInfo.onSuccess {
         case p =>
           log.debug("retrieved Inode for path %s", path)
           inodePromise success INode.deserialize(ByteBufferUtil.inputStream(p.column.value), p.column.getTimestamp)
       }
+
       pathInfo.onFailure {
         case f =>
           log.error(f, "failed to retrieve Inode for path %s", path)
@@ -355,6 +369,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
           log.debug("stored subBlock %s for block with id %s", subBlockMeta.toString, blockId.toString)
           prom success GenericOpSuccess()
       }
+
       subBlockFuture.onFailure {
         case f =>
           log.debug(f, " failed to store subBlock %s for block with id %s", subBlockMeta.toString, blockId.toString)
@@ -368,19 +383,23 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
       val blockIdBuffer: ByteBuffer = ByteBufferUtil.bytes(blockId)
       val subBlockIdBuffer = ByteBufferUtil.bytes(subBlockId)
       log.debug("fetching subBlock for path %s", subBlockId.toString)
+
       val subBlockFuture = performGet(client, blockIdBuffer, new ColumnPath(BLOCK_COLUMN_FAMILY_NAME).setColumn(subBlockIdBuffer))
       val prom = promise[InputStream]()
+
       subBlockFuture.onSuccess {
         case p =>
           val stream: InputStream = ByteBufferUtil.inputStream(p.column.value)
           log.debug("retrieved subBlock with id %s and block id %s", subBlockId.toString, blockId.toString)
           prom success stream
       }
+
       subBlockFuture.onFailure {
         case f =>
           log.debug("failed to retrieve subBlock with id %s and block id %s", subBlockId.toString, blockId.toString)
           prom failure f
       }
+
       prom.future
   })
 
@@ -405,11 +424,13 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
           log.debug("deleted INode with path %s", path)
           result success GenericOpSuccess()
       }
+
       deleteInodeFuture.onFailure {
         case f =>
           log.error(f, "failed to delete INode with path %s", path)
           result failure f
       }
+
       result.future
   })
 
@@ -421,18 +442,19 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
       val deleteFuture = AsyncUtil.executeAsync[batch_mutate_call](
         client.batch_mutate(mutationMap, configuration.writeConsistencyLevel, _))
+
       deleteFuture.onSuccess {
-        case p => {
+        case p =>
           log.debug("deleted blocks for INode %s", iNode.toString)
           result success GenericOpSuccess()
-        }
       }
+
       deleteFuture.onFailure {
-        case f => {
+        case f =>
           log.error(f, "failed to delete blocks for INode %s", iNode.toString)
           result failure f
-        }
       }
+
       result.future
   })
 
@@ -489,16 +511,17 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
         client.get_indexed_slices(iNodeParent, indexClause, pathPredicate, configuration.readConsistencyLevel, _))
 
       val result = promise[Set[Path]]()
+
       rowFuture.onSuccess {
-        case p => {
+        case p =>
           val paths = p.getResult.flatMap(keySlice =>
             keySlice.getColumns.map(columnOrSuperColumn =>
               new Path(ByteBufferUtil.string(columnOrSuperColumn.column.value)))
           ).toSet
           log.debug("fetched subpaths for %s", indexExpr.toString())
           result success paths
-        }
       }
+
       rowFuture.onFailure {
         case f =>
           log.error(f, "failed to fetch subpaths for  %s", indexExpr.toString())
@@ -630,17 +653,21 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
   }
 
   private def isCreator(processId: UUID, columns: java.util.List[ColumnOrSuperColumn]): Boolean = {
+    var result = false
     log.debug("checking for access to create a file for %s", processId)
+
     if (columns.length >= 1) {
       val firstEntry = columns.head.getColumn
       val entryIdString: String = new String(firstEntry.getValue)
       val processIdString: String = new String(ByteBufferUtil.bytes(processId).array())
       log.debug("value found %s", entryIdString)
       log.debug("given value %s", processIdString)
-      if (entryIdString != processIdString) {
-        false
-      } else true
-    } else false
+
+      if (entryIdString == processIdString) {
+        result = true
+      }
+    }
+    result
   }
 
   def acquireFileLock(path: Path, processId: UUID): Future[Boolean] = executeWithClient({
@@ -649,33 +676,30 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
       log.debug("adding column for create lock")
       val addColumnFuture = addLockColumn(path, processId, client)
       addColumnFuture.onSuccess {
-        case res => {
+        case res =>
           log.debug("added column for create lock")
           val getRowFuture = getLockRow(path, client)
-
           log.debug("getting row for create lock")
+
           getRowFuture.onSuccess {
-            case rowData => {
+            case rowData =>
               val result = isCreator(processId, rowData.getResult)
               prom success result
-            }
           }
 
           getRowFuture.onFailure {
-            case e => {
+            case e =>
               log.error(e, "error in getting row")
               prom failure e
-            }
           }
-        }
       }
 
       addColumnFuture.onFailure {
-        case e => {
+        case e =>
           log.error(e, "error in adding column for create lock")
           prom failure e
-        }
       }
+
       prom.future
   })
 
@@ -695,17 +719,17 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
       val deleteLockFuture = deleteLockRow(path, client)
 
       deleteLockFuture.onSuccess {
-        case res => {
+        case res =>
           log.debug("deleted lock")
           prom success true
-        }
       }
+
       deleteLockFuture.onFailure {
-        case e => {
+        case e =>
           log.error(e, "failed to delete lock")
           prom success false
-        }
       }
+
       prom.future
   })
 

@@ -16,8 +16,9 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.snackfs.model
+package com.tuplejump.snackfs.cassandra.model
 
-class Keyspace(name:String) {
+import org.apache.cassandra.thrift.Cassandra.AsyncClient
+import org.apache.thrift.transport.TNonblockingSocket
 
-}
+case class ThriftClientAndSocket(client: AsyncClient, socket: TNonblockingSocket)

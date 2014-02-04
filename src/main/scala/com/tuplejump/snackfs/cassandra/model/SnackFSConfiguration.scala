@@ -17,7 +17,7 @@
  *
  */
 
-package com.tuplejump.snackfs.model
+package com.tuplejump.snackfs.cassandra.model
 
 import org.apache.hadoop.conf.Configuration
 import org.apache.cassandra.locator.SimpleStrategy
@@ -31,6 +31,7 @@ case class SnackFSConfiguration(CassandraHost: String, CassandraPort: Int,
 }
 
 object SnackFSConfiguration {
+
   private val CONSISTENCY_LEVEL = ConsistencyLevel.QUORUM
   private val REPLICATION_STRATEGY = classOf[SimpleStrategy].getCanonicalName
   private val KEYSPACE = "snackfs"

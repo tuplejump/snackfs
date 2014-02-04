@@ -16,6 +16,13 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.model
+package com.tuplejump.snackfs.fs.model
 
-case class GenericOpSuccess(){}
+import java.util.UUID
+
+case class SubBlockMeta(id:UUID,offset:Long,length:Long) {
+  override def toString= {
+    val result = "SubBlock["+(id,offset,length).toString()+"]"
+    result
+  }
+}

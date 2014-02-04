@@ -16,15 +16,15 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.snackfs.fs
+package com.tuplejump.snackfs.cassandra.partial
 
 import scala.concurrent.Future
 import org.apache.hadoop.fs.Path
 import java.util.UUID
 import java.nio.ByteBuffer
 import java.io.InputStream
-import com.tuplejump.snackfs.model._
-import com.tuplejump.model.GenericOpSuccess
+import com.tuplejump.snackfs.fs.model._
+import com.tuplejump.snackfs.cassandra.model.{GenericOpSuccess, Keyspace}
 
 trait FileSystemStore {
 

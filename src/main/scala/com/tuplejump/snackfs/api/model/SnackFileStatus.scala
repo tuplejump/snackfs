@@ -16,13 +16,37 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.snackfs.model
+package com.tuplejump.snackfs.api.model
 
-import java.util.UUID
+import com.tuplejump.snackfs.fs.model.INode
+import org.apache.hadoop.fs.{FileStatus, Path}
 
-case class SubBlockMeta(id:UUID,offset:Long,length:Long) {
-  override def toString= {
-    val result = "SubBlock["+(id,offset,length).toString()+"]"
+case class SnackFileStatus(iNode: INode, path: Path) extends FileStatus(
+  SnackFileStatusHelper.length(iNode), //length
+  iNode.isDirectory, //isDir
+  0, //block_replication
+  SnackFileStatusHelper.blockSize(iNode), //blocksize
+  iNode.timestamp, //modification_time
+  0L, //access_time
+  iNode.permission,
+  iNode.user,
+  iNode.group,
+  path: Path)
+
+object SnackFileStatusHelper {
+  def length(iNode: INode): Long = {
+    var result = 0L
+    if (iNode.isFile) {
+      result = iNode.blocks.map(_.length).sum
+    }
+    result
+  }
+
+  def blockSize(iNode: INode): Long = {
+    var result = 0L
+    if (iNode.blocks != null && iNode.blocks.length > 0) {
+      result = iNode.blocks(0).length
+    }
     result
   }
 }

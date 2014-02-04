@@ -16,7 +16,7 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.snackfs.fs
+package com.tuplejump.snackfs.fs.stream
 
 import java.io.{IOException, OutputStream}
 import org.apache.hadoop.fs.Path
@@ -26,14 +26,15 @@ import java.nio.ByteBuffer
 import org.apache.hadoop.fs.permission.FsPermission
 import scala.concurrent.Await
 import scala.concurrent.duration._
-import com.tuplejump.snackfs.model.{SubBlockMeta, FileType, INode, BlockMeta}
+import com.tuplejump.snackfs.fs.model._
+import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
 import com.twitter.logging.Logger
 
 case class FileSystemOutputStream(store: FileSystemStore, path: Path,
                                   blockSize: Long, subBlockSize: Long,
                                   bufferSize: Long, atMost: FiniteDuration) extends OutputStream {
 
-  private val log = Logger.get("com.tuplejump.snackfs.fs.FileSystemOutputStream")
+  private lazy val log = Logger.get(getClass)
 
   private var isClosed: Boolean = false
 
@@ -90,6 +91,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
       val subBlockMeta = SubBlockMeta(UUIDGen.getTimeUUID, subBlockOffset, position)
       log.debug("storing subblock")
       Await.ready(store.storeSubBlock(blockId, subBlockMeta, ByteBuffer.wrap(outBuffer)), atMost)
+
       subBlockOffset += position
       bytesWrittenToBlock += position
       subBlocksMeta = subBlocksMeta :+ subBlockMeta
@@ -106,8 +108,10 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
     val permissions = FsPermission.getDefault
     val timestamp = System.currentTimeMillis()
     val iNode = INode(user, user, permissions, FileType.FILE, blocksMeta, timestamp)
+
     log.debug("storing/updating block details for INode at %s", path)
     Await.ready(store.storeINode(path, iNode), atMost)
+
     blockOffset += subBlockLengths.asInstanceOf[Int]
     subBlocksMeta = List()
     subBlockOffset = 0
