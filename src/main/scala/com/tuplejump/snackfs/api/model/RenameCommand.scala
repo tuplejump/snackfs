@@ -57,91 +57,88 @@ object RenameCommand {
     }
   }
 
-  def apply(store: FileSystemStore, src: Path, dst: Path, atMost: FiniteDuration): Boolean = {
-    if (src != dst) {
-      val mayBeSrcINode = Try(Await.result(store.retrieveINode(src), atMost))
-      mayBeSrcINode match {
-        case Failure(e1) => {
-          val ex = new IOException("No such file or directory.%s".format(src))
-          log.error(ex, "Failed to rename %s as it doesnt exist", src)
+  //TODO refactor this
+  def apply(store: FileSystemStore, srcPath: Path, dstPath: Path, atMost: FiniteDuration): Boolean = {
+    if (srcPath != dstPath) {
+      val mayBeSrc = Try(Await.result(store.retrieveINode(srcPath), atMost))
+      mayBeSrc match {
+        case Failure(e1) => 
+          val ex = new IOException("No such file or directory.%s".format(srcPath))
+          log.error(ex, "Failed to rename %s as it doesnt exist", srcPath)
           throw ex
-        }
-        case Success(iNode: INode) =>
-          val mayBeDstINode = Try(Await.result(store.retrieveINode(dst), atMost))
-          mayBeDstINode match {
-            case Failure(e) => {
-              log.debug("%s does not exist. checking if %s exists", dst, dst.getParent)
-              val maybeDstParent = Try(Await.result(store.retrieveINode(dst.getParent), atMost))
+        case Success(src: INode) =>
+          val mayBeDst = Try(Await.result(store.retrieveINode(dstPath), atMost))
+          mayBeDst match {
+            case Failure(e) =>
+              log.debug("%s does not exist. checking if %s exists", dstPath, dstPath.getParent)
+              val maybeDstParent = Try(Await.result(store.retrieveINode(dstPath.getParent), atMost))
               maybeDstParent match {
-                case Failure(e2) => {
-                  val ex = new IOException("Destination %s directory does not exist.".format(dst.getParent))
-                  log.error(ex, "Failed to rename %s as destination %s doesn't exist", src, dst.getParent)
+                case Failure(e2) =>
+                  val ex = new IOException("Destination %s directory does not exist.".format(dstPath.getParent))
+                  log.error(ex, "Failed to rename %s as destination %s doesn't exist", srcPath, dstPath.getParent)
                   throw ex
-                }
-                case Success(dstParentINode: INode) => {
-                  if (dstParentINode.isFile) {
+                case Success(dstParent: INode) =>
+                  if (dstParent.isFile) {
                     val ex = new IOException("A file exists with parent of destination.")
-                    log.error(ex, "Failed to rename directory %s as given destination's parent %s is a file", src, dst.getParent)
+                    log.error(ex, "Failed to rename directory %s as given destination's parent %s is a file", srcPath, dstPath.getParent)
                     throw ex
                   }
-                  if (iNode.isDirectory) {
-                    log.debug("renaming directory %s to %s", src, dst)
-                    renameDir(store, src, dst, atMost)
+                  if (src.isDirectory) {
+                    log.debug("renaming directory %s to %s", srcPath, dstPath)
+                    renameDir(store, srcPath, dstPath, atMost)
                   }
-                  renameINode(store, src, dst, iNode, atMost)
-                }
-              }
+                  renameINode(store, srcPath, dstPath, src, atMost)
             }
-            case Success(dstINode: INode) =>
-              if (dstINode.isFile) {
-                val ex = new IOException("A file %s already exists".format(dst))
-                log.error(ex, "Failed to rename %s as given destination %s is a file", src, dst)
+            case Success(dst: INode) =>
+              if (dst.isFile) {
+                val ex = new IOException("A file %s already exists".format(dstPath))
+                log.error(ex, "Failed to rename %s as given destination %s is a file", srcPath, dstPath)
                 throw ex
               }
               else {
-                var dstPathString = dst.toUri.getPath
+                var dstPathString = dstPath.toUri.getPath
                 if (!dstPathString.endsWith("/")) {
                   dstPathString = dstPathString + "/"
                 }
-                val fileName = src.getName
+                val fileName = srcPath.getName
                 val updatedPath = new Path(dstPathString + fileName)
 
-                val mayBeExistingINode = Try(Await.result(store.retrieveINode(updatedPath), atMost))
+                val mayBeExistingFile = Try(Await.result(store.retrieveINode(updatedPath), atMost))
 
-                mayBeExistingINode match {
+                mayBeExistingFile match {
                   case Failure(e) =>
-                    if (iNode.isFile) {
-                      log.debug("renaming file %s to %s", src, dst)
-                      renameINode(store, src, updatedPath, iNode, atMost)
+                    if (src.isFile) {
+                      log.debug("renaming file %s to %s", srcPath, dstPath)
+                      renameINode(store, srcPath, updatedPath, src, atMost)
                     } else {
-                      log.debug("renaming directory %s to %s", src, dst)
-                      renameDir(store, src, updatedPath, atMost)
+                      log.debug("renaming directory %s to %s", srcPath, dstPath)
+                      renameDir(store, srcPath, updatedPath, atMost)
                     }
-                  case Success(existingINode: INode) =>
-                    if (existingINode.isFile) {
-                      if (iNode.isFile) {
-                        renameINode(store, src, updatedPath, iNode, atMost)
+                  case Success(existingFile: INode) =>
+                    if (existingFile.isFile) {
+                      if (src.isFile) {
+                        renameINode(store, srcPath, updatedPath, src, atMost)
                       } else {
                         val ex = new IOException("cannot overwrite non-directory with a directory")
-                        log.error(ex, "Failed to rename directory %s as given destination %s is a file", src, dst)
+                        log.error(ex, "Failed to rename directory %s as given destination %s is a file", srcPath, dstPath)
                         throw ex
                       }
                     } else {
-                      if (iNode.isFile) {
+                      if (src.isFile) {
                         val ex = new IOException("cannot overwrite directory with a non-directory")
-                        log.error(ex, "Failed to rename file %s as given destination %s is a directory", src, dst)
+                        log.error(ex, "Failed to rename file %s as given destination %s is a directory", srcPath, dstPath)
                         throw ex
                       }
                       else {
                         val contents = Await.result(store.fetchSubPaths(updatedPath, isDeepFetch = false), atMost)
                         if (contents.size > 0) {
-                          val ex = new IOException("cannot move %s to %s - directory not empty".format(src, dst))
-                          log.error(ex, "Failed to rename %s as given destination %s is not empty", src, dst)
+                          val ex = new IOException("cannot move %s to %s - directory not empty".format(srcPath, dstPath))
+                          log.error(ex, "Failed to rename %s as given destination %s is not empty", srcPath, dstPath)
                           throw ex
                         }
                         else {
-                          log.debug("renaming %s to %s", src, updatedPath)
-                          renameDir(store, src, updatedPath, atMost)
+                          log.debug("renaming %s to %s", srcPath, updatedPath)
+                          renameDir(store, srcPath, updatedPath, atMost)
                         }
                       }
                     }
@@ -152,6 +149,4 @@ object RenameCommand {
     }
     true
   }
-
-
 }
