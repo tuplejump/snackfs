@@ -28,7 +28,7 @@
     </property>
     <property>
         <name>fs.snackfs.impl</name>
-        <value>com.tuplejump.snackfs.fs.SnackFS</value>
+        <value>com.tuplejump.snackfs.SnackFS</value>
     </property>
     <property>
         <name>snackfs.keyspace</name>
@@ -44,7 +44,7 @@
     </property>
     <property>
         <name>fs.default.name</name>
-        <value>snackfs:///</value>
+        <value>file:///</value>
     </property>
 </configuration>
 

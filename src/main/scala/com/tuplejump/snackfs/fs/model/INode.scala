@@ -17,7 +17,7 @@
  *
  */
 
-package com.tuplejump.snackfs.model
+package com.tuplejump.snackfs.fs.model
 
 import org.apache.hadoop.fs.permission.FsPermission
 import java.io._
@@ -32,7 +32,7 @@ object FileType extends Enumeration {
 case class INode(user: String, group: String, permission: FsPermission,
                  fileType: FileType.Value, blocks: Seq[BlockMeta], timestamp: Long) {
 
-  private val log = Logger.get("com.tuplejump.snackfs.model.INode")
+  private lazy val log = Logger.get(getClass)
 
   def isDirectory: Boolean = this.fileType == FileType.DIRECTORY
 
