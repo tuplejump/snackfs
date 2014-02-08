@@ -44,7 +44,7 @@
     </property>
     <property>
         <name>fs.default.name</name>
-        <value>snackfs:///</value>
+        <value>file:///</value>
     </property>
 </configuration>
 
