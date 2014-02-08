@@ -26,8 +26,9 @@ import com.tuplejump.snackfs.fs.model.{FileType, INode}
 import com.twitter.logging.Logger
 import scala.concurrent.duration.FiniteDuration
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
+import com.tuplejump.snackfs.api.partial.Command
 
-object MakeDirectoryCommand {
+object MakeDirectoryCommand extends Command {
   private lazy val log = Logger.get(getClass)
 
   private def mkdir(store: FileSystemStore,

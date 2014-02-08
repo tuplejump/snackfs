@@ -14,29 +14,9 @@
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  * See the License for the specific language governing permissions and
  * limitations under the License.
- *
  */
-package com.tuplejump.snackfs.api.model
+package com.tuplejump.snackfs.api.partial
 
-import scala.concurrent.duration.FiniteDuration
-import java.io.IOException
-import org.apache.hadoop.fs.{FSDataOutputStream, Path}
-import org.apache.hadoop.util.Progressable
-import com.twitter.logging.Logger
-import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
-import com.tuplejump.snackfs.api.partial.Command
+trait Command {
 
-object AppendFileCommand extends Command {
-  private lazy val log = Logger.get(getClass)
-
-  def apply(store: FileSystemStore,
-            filePath: Path,
-            bufferSize: Int,
-            progress: Progressable,
-            atMost: FiniteDuration): FSDataOutputStream = {
-
-    val ex = new IOException("Appending to existing file is not supported.")
-    log.error(ex, "Failed to append to file %s as it is not supported", filePath)
-    throw ex
-  }
 }

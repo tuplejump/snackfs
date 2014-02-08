@@ -16,7 +16,7 @@
  * limitations under the License.
  *
  */
-package com.tuplejump.snackfs.api.bridge
+package com.tuplejump.snackfs
 
 import java.net.URI
 import org.apache.hadoop.fs.permission.FsPermission

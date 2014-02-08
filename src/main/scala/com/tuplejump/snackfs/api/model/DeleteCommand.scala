@@ -25,9 +25,10 @@ import scala.concurrent.duration.FiniteDuration
 import org.apache.hadoop.fs.Path
 import com.twitter.logging.Logger
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
+import com.tuplejump.snackfs.api.partial.Command
 
 
-object DeleteCommand {
+object DeleteCommand extends Command {
   private lazy val log = Logger.get(getClass)
 
   def apply(store: FileSystemStore,

@@ -27,8 +27,9 @@ import scala.concurrent.duration.FiniteDuration
 import com.twitter.logging.Logger
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
 import com.tuplejump.snackfs.fs.model.INode
+import com.tuplejump.snackfs.api.partial.Command
 
-object OpenFileCommand {
+object OpenFileCommand extends Command {
   private lazy val log = Logger.get(getClass)
 
   //TODO check how bufferSize is applied

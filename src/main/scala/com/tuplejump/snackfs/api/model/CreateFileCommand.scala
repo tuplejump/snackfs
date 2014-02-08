@@ -31,8 +31,9 @@ import java.util.UUID
 import org.apache.hadoop.fs.FileSystem.Statistics
 import com.twitter.logging.Logger
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
+import com.tuplejump.snackfs.api.partial.Command
 
-object CreateFileCommand {
+object CreateFileCommand extends Command {
 
   private lazy val log = Logger.get(getClass)
 
@@ -70,7 +71,7 @@ object CreateFileCommand {
 
           case Failure(e: Exception) =>
             val parentPath = filePath.getParent
-            
+
             if (parentPath != null) {
               MakeDirectoryCommand(store, parentPath, filePermission, atMost)
             }

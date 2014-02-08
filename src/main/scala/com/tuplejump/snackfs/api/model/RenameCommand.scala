@@ -27,8 +27,9 @@ import com.twitter.logging.Logger
 import scala.concurrent.duration.FiniteDuration
 import org.apache.hadoop.fs.permission.FsPermission
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
+import com.tuplejump.snackfs.api.partial.Command
 
-object RenameCommand {
+object RenameCommand extends Command {
   private lazy val log = Logger.get(getClass)
 
   private def renameINode(store: FileSystemStore, originalPath: Path, updatedPath: Path, iNode: INode, atMost: FiniteDuration) = {
@@ -62,7 +63,7 @@ object RenameCommand {
     if (srcPath != dstPath) {
       val mayBeSrc = Try(Await.result(store.retrieveINode(srcPath), atMost))
       mayBeSrc match {
-        case Failure(e1) => 
+        case Failure(e1) =>
           val ex = new IOException("No such file or directory.%s".format(srcPath))
           log.error(ex, "Failed to rename %s as it doesnt exist", srcPath)
           throw ex
@@ -88,7 +89,7 @@ object RenameCommand {
                     renameDir(store, srcPath, dstPath, atMost)
                   }
                   renameINode(store, srcPath, dstPath, src, atMost)
-            }
+              }
             case Success(dst: INode) =>
               if (dst.isFile) {
                 val ex = new IOException("A file %s already exists".format(dstPath))

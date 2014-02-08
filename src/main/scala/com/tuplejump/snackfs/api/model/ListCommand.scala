@@ -25,8 +25,9 @@ import java.io.FileNotFoundException
 import org.apache.hadoop.fs.{FileStatus, Path}
 import com.twitter.logging.Logger
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
+import com.tuplejump.snackfs.api.partial.Command
 
-object ListCommand {
+object ListCommand extends Command {
   private lazy val log = Logger.get(getClass)
 
   def apply(store: FileSystemStore,
