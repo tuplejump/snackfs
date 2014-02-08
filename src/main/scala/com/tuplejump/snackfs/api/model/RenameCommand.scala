@@ -58,7 +58,13 @@ object RenameCommand extends Command {
     }
   }
 
-  //TODO refactor this
+  /*
+   * Renames Path src to Path dst
+   * 1. Fails if the src doesnt exist.
+   * 2. Fails if the dst already exists.
+   * 3. Fails if the parent of dst does not exist or is a file.
+   *
+   */
   def apply(store: FileSystemStore, srcPath: Path, dstPath: Path, atMost: FiniteDuration): Boolean = {
     if (srcPath != dstPath) {
       val mayBeSrc = Try(Await.result(store.retrieveINode(srcPath), atMost))
@@ -70,6 +76,10 @@ object RenameCommand extends Command {
         case Success(src: INode) =>
           val mayBeDst = Try(Await.result(store.retrieveINode(dstPath), atMost))
           mayBeDst match {
+            case Success(dst: INode) =>
+                val ex = new IOException("Destination already exists")
+                log.error(ex, "Failed to rename %s as given destination %s exits", srcPath, dstPath)
+                throw ex
             case Failure(e) =>
               log.debug("%s does not exist. checking if %s exists", dstPath, dstPath.getParent)
               val maybeDstParent = Try(Await.result(store.retrieveINode(dstPath.getParent), atMost))
@@ -89,61 +99,6 @@ object RenameCommand extends Command {
                     renameDir(store, srcPath, dstPath, atMost)
                   }
                   renameINode(store, srcPath, dstPath, src, atMost)
-              }
-            case Success(dst: INode) =>
-              if (dst.isFile) {
-                val ex = new IOException("A file %s already exists".format(dstPath))
-                log.error(ex, "Failed to rename %s as given destination %s is a file", srcPath, dstPath)
-                throw ex
-              }
-              else {
-                var dstPathString = dstPath.toUri.getPath
-                if (!dstPathString.endsWith("/")) {
-                  dstPathString = dstPathString + "/"
-                }
-                val fileName = srcPath.getName
-                val updatedPath = new Path(dstPathString + fileName)
-
-                val mayBeExistingFile = Try(Await.result(store.retrieveINode(updatedPath), atMost))
-
-                mayBeExistingFile match {
-                  case Failure(e) =>
-                    if (src.isFile) {
-                      log.debug("renaming file %s to %s", srcPath, dstPath)
-                      renameINode(store, srcPath, updatedPath, src, atMost)
-                    } else {
-                      log.debug("renaming directory %s to %s", srcPath, dstPath)
-                      renameDir(store, srcPath, updatedPath, atMost)
-                    }
-                  case Success(existingFile: INode) =>
-                    if (existingFile.isFile) {
-                      if (src.isFile) {
-                        renameINode(store, srcPath, updatedPath, src, atMost)
-                      } else {
-                        val ex = new IOException("cannot overwrite non-directory with a directory")
-                        log.error(ex, "Failed to rename directory %s as given destination %s is a file", srcPath, dstPath)
-                        throw ex
-                      }
-                    } else {
-                      if (src.isFile) {
-                        val ex = new IOException("cannot overwrite directory with a non-directory")
-                        log.error(ex, "Failed to rename file %s as given destination %s is a directory", srcPath, dstPath)
-                        throw ex
-                      }
-                      else {
-                        val contents = Await.result(store.fetchSubPaths(updatedPath, isDeepFetch = false), atMost)
-                        if (contents.size > 0) {
-                          val ex = new IOException("cannot move %s to %s - directory not empty".format(srcPath, dstPath))
-                          log.error(ex, "Failed to rename %s as given destination %s is not empty", srcPath, dstPath)
-                          throw ex
-                        }
-                        else {
-                          log.debug("renaming %s to %s", srcPath, updatedPath)
-                          renameDir(store, srcPath, updatedPath, atMost)
-                        }
-                      }
-                    }
-                }
               }
           }
       }

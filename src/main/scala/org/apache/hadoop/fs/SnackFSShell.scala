@@ -39,7 +39,6 @@ class SnackFSShell extends FsShell {
       System.err.println(prefix)
       val commandList = """|           [-ls <path>]
                           |           [-lsr <path>]
-                          |           [-df [<path>]]
                           |           [-du <path>]
                           |           [-dus <path>]
                           |           [-count[-q] <path>]
@@ -49,11 +48,11 @@ class SnackFSShell extends FsShell {
                           |           [-rmr <path>]
                           |           [-put <localsrc> ... <dst>]
                           |           [-copyFromLocal <localsrc> ... <dst>]
-                          |           [-get [-ignoreCrc] [-crc] <src> <localdst>]
+                          |           [-get <src> <localdst>]
                           |           [-getmerge <src> <localdst> [addnl]]
                           |           [-cat <src>]
                           |           [-text <src>]
-                          |           [-copyToLocal [-ignoreCrc] [-crc] <src> <localdst>]
+                          |           [-copyToLocal <src> <localdst>]
                           |           [-mkdir <path>]
                           |           [-touchz <path>]
                           |           [-test -[ezd] <path>]
@@ -138,7 +137,7 @@ class SnackFSShell extends FsShell {
     val copyFromLocalHelp: String = """|-copyFromLocal <localsrc> ... <dst>: Identical to the -put command.
                                       | """
 
-    val getHelp: String = """|-get [-ignoreCrc] [-crc] <src> <localdst>:  Copy files that match the file pattern <src>
+    val getHelp: String = """|-get <src> <localdst>:  Copy files that match the file pattern <src>
                             |		to the local name.  <src> is kept.  When copying mutiple,
                             |		files, the destination must be a directory.
                             | """
@@ -156,7 +155,7 @@ class SnackFSShell extends FsShell {
                              |		The allowed formats are zip and TextRecordInputStream.
                              | """
 
-    val copyToLocalHelp: String = """|-copyToLocal [-ignoreCrc] [-crc] <src> <localdst>:  Identical to the -get command.
+    val copyToLocalHelp: String = """|-copyToLocal <src> <localdst>:  Identical to the -get command.
                                     | """
 
     val mkdirHelp: String = """|-mkdir <path>: 	Create a directory in specified location.
@@ -370,7 +369,7 @@ class SnackFSShell extends FsShell {
           dus(argv(i))
         }
         else if (Count.matches(cmd)) {
-          new Count(argv, i, getConf).runAll
+          count(argv, i)
         }
         else if ("-ls" == cmd) {
           exitCode = ls(argv(i), recursive = false)
@@ -534,6 +533,20 @@ class SnackFSShell extends FsShell {
     in.close()
   }
 
+  def count(argv: Array[String], position: Int) = {
+    var pathString: String = "file:///"
+    var qOption = false
+    if (argv(position) != "-q") {
+      pathString = argv(position)
+    } else {
+      qOption = true
+      pathString = argv(position + 1)
+    }
+    val filePath = new Path(pathString)
+    val fs: FileSystem = filePath.getFileSystem(getConf)
+    println(fs.getContentSummary(filePath).toString(qOption) + pathString)
+  }
+
   /**
    * run
    */
@@ -655,7 +668,7 @@ class SnackFSShell extends FsShell {
         }
       }
       else if (Count.matches(cmd)) {
-        exitCode = new Count(argv, i, getConf).runAll
+        count(argv, i)
       }
       else if ("-mkdir" == cmd) {
         exitCode = doall(cmd, argv, i)
