@@ -47,7 +47,7 @@ And with Scala 2.10.3,
 
 ### Build from Source
 
-1. Checkout the source from http://github.com/tuplejump/snackfs or the_grand_central branch in http://github.com/tuplejump/calliope
+1. Checkout the source from http://github.com/tuplejump/snackfs
 
 2. To build SnackFS distribution run sbt's dist command in the project directory
 ```
@@ -81,14 +81,14 @@ And with Scala 2.10.3,
 1. Setup Apache Hadoop v1.0.4.(http://hadoop.apache.org/#Getting+Started). The base directory will be referred as 'hadoop-1.0.4' in the following steps.
 
 2. Execute the following commands in the snackfs project directory.
-```
+```2.
 [snackfs]$ sbt package
 ```
 
-   This will result in a "snackfs_2.9.3-0.1-SNAPSHOT.jar" file in the "target/scala-2.9.3" directory of "snackfs".
+   This will result in a "snackfs_&lt;scala_version&gt;-&lt;version&gt;.jar" file in the "target/scala-&lt;scala_version&gt;" directory of "snackfs".
    Copy the jar to 'hadoop-1.0.4/lib'.
 
-3. Copy all the jars in snackfs/lib_managed and scala-library-2.9.3.jar
+3. Copy all the jars in snackfs/lib_managed and scala-library-&lt;scala_version&gt;.jar
    (located at '~/.ivy2/cache/org.scala-lang/scala-library/jars') to 'hadoop-1.0.4/lib'.
 
 4. Copy snackfs/src/main/resources/core-site.xml to 'hadoop-1.0.4/conf'
