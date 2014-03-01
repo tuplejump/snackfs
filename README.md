@@ -1,4 +1,4 @@
-#SnackFS
+# SnackFS
 
 SnackFS is our bite-sized, lightweight HDFS compatible FileSystem built over Cassandra.
 With it's unique fat driver design it requires no additional SysOps or setup on the Cassanndra Cluster. All you have to do is point to your Cassandra cluster and you are ready to go.
@@ -6,26 +6,37 @@ With it's unique fat driver design it requires no additional SysOps or setup on 
 As SnackFS was written as a dropin replacement for HDFS, your existing HDFS backed applications not only run as-is on SnackFS, but they also run faster!
 SnackFS cluster is also more resilient than a HDFS cluster as there is no SPOF like the NameNode.
 
-##Prerequisites
+## Prerequisites
 
 1. SBT : It can be set up from the instructions [here](http://www.scala-sbt.org/release/docs/Getting-Started/Setup.html#installing-sbt).
 
 2. Cassandra(v1.2.12) : Instructions can be found [here](http://wiki.apache.org/cassandra/GettingStarted). An easier alternative would be using [CCM](https://github.com/pcmanus/ccm)
 
-##Using SnackFS
+## Using SnackFS
 
-###Use the binary
+### Use the binary
 
-* You can download the SnackFS distribution from here -
-####TODO
+* You can download the SnackFS distribution [from here](http://bit.ly/1ci0hIf)
 
 * To add SnackFS to your SBT project use,
-####TODO
+```scala
+"com.tuplejump" %% "snackfs" % "0.6-EA"
+```
 
 * To add SnackFS to your Maven project use,
-####TODO
 
-###Build from Source
+with Scala 2.9.3 use,
+
+```xml
+<dependency>
+  <groupId>com.tuplejump</groupId>
+  <artifactId>snackfs_2.9.3</artifactId>
+  <version>0.6-EA</version>
+</dependency>
+```
+
+
+### Build from Source
 
 1. Checkout the source from http://github.com/tuplejump/snackfs or the_grand_central branch in http://github.com/tuplejump/calliope
 
@@ -96,6 +107,7 @@ Default value if not set if ERROR
 
 ####In code (for further control/tuning)
 If you want your logs in a File, update LogConfiguration.scala like below
+
 ```scala
 val config = new LoggerFactory("", Option(Level.ALL), List(FileHandler("logs")), true)
 ```
