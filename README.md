@@ -47,7 +47,7 @@ And with Scala 2.10.3,
 
 ### Build from Source
 
-1. Checkout the source from http://github.com/tuplejump/snackfs or the_grand_central branch in http://github.com/tuplejump/calliope
+1. Checkout the source from http://github.com/tuplejump/snackfs
 
 2. To build SnackFS distribution run sbt's dist command in the project directory
 ```
