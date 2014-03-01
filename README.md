@@ -19,6 +19,7 @@ SnackFS cluster is also more resilient than a HDFS cluster as there is no SPOF l
 * You can download the SnackFS distribution [from here](http://bit.ly/1ci0hIf)
 
 * To add SnackFS to your SBT project use,
+
 ```scala
 "com.tuplejump" %% "snackfs" % "0.6-EA"
 ```
