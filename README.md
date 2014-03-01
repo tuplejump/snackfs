@@ -16,26 +16,34 @@ SnackFS cluster is also more resilient than a HDFS cluster as there is no SPOF l
 
 ### Use the binary
 
-* You can download the SnackFS distribution [from here](http://bit.ly/1ci0hIf)
+* You can download the SnackFS distribution built with [Scala 2.9.x here](http://bit.ly/1eKV1ae) and [Scala 2.10.x here](http://bit.ly/1jI7vVw)
 
 * To add SnackFS to your SBT project use,
 
+For SBT
 ```scala
-"com.tuplejump" %% "snackfs" % "0.6-EA"
+"com.tuplejump" %% "snackfs" % "0.6.1-EA"
 ```
 
 * To add SnackFS to your Maven project use,
-
 with Scala 2.9.3 use,
 
 ```xml
 <dependency>
   <groupId>com.tuplejump</groupId>
   <artifactId>snackfs_2.9.3</artifactId>
-  <version>0.6-EA</version>
+  <version>0.6.1-EA</version>
 </dependency>
 ```
 
+And with Scala 2.10.3,
+```xml
+<dependency>
+  <groupId>com.tuplejump</groupId>
+  <artifactId>snackfs_2.10</artifactId>
+  <version>0.6.1-EA</version>
+</dependency>
+```
 
 ### Build from Source
 
