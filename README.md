@@ -1,3 +1,6 @@
+[SnackFS @ Calliope](http://tuplejump.github.io/calliope/snackfs.html)
+
+
 # SnackFS
 
 SnackFS is our bite-sized, lightweight HDFS compatible FileSystem built over Cassandra.
