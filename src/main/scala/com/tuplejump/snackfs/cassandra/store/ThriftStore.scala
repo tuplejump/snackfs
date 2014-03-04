@@ -506,9 +506,12 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
       val pathPredicate = new SlicePredicate().setColumn_names(List(PATH_COLUMN))
       val iNodeParent = new ColumnParent(INODE_COLUMN_FAMILY_NAME)
 
-      val indexClause = new IndexClause(indexExpr, ByteBufferUtil.EMPTY_BYTE_BUFFER, 100000)
-      val rowFuture = AsyncUtil.executeAsync[get_indexed_slices_call](
-        client.get_indexed_slices(iNodeParent, indexClause, pathPredicate, configuration.readConsistencyLevel, _))
+      val keyRange = new KeyRange().setRow_filter(indexExpr).setCount(100000)
+      keyRange.setStart_key(ByteBufferUtil.EMPTY_BYTE_BUFFER)
+      keyRange.setEnd_key(ByteBufferUtil.EMPTY_BYTE_BUFFER)
+
+      val rowFuture = AsyncUtil.executeAsync[get_range_slices_call](
+        client.get_range_slices(iNodeParent, pathPredicate, keyRange, configuration.readConsistencyLevel, _))
 
       val result = promise[Set[Path]]()
 
