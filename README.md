@@ -76,12 +76,35 @@ And with Scala 2.10.3,
 [Snackfs(extracted)]$bin/snackfs -mkdir snackfs:///random
 ```
 
+#### Running Tests Locally
+Prerequisites:
+A three node Cassandra cluster running at 127.0.0.1:9160.
+Cassandra version should be same as that in SnackFSBuild.scala.
+
+To modify these for any test, you can specify the value in the specific test.
+You can refer to ThriftStoreSpec for example. All the properties mentioned in previous section can be set.
+
+Tests can be run from SBT console, using the `test` or `test-only` commands.
+The integration tests:
+
+* FSShellSpec - tests to check SnackFS compatibility with Hadoop-v1.0.4
+* SnackFSShellSpec - tests to check SnackFS
+
+can be run using the `it` command.
+
+FSShellSpec requires `HADOOP_HOME` to be defined in the system environment.
+Additionally, `projectHome` in FSShellSpec file should be set to point to the path where SnackFS
+has been cloned.
+
+Similarly, SnackFSShellSpec requires `SNACKFS_HOME` to be defined in the system environment.
+This should point to the location where the tar file generated from `dist` command was extracted.
+
 ###To build and use with Hadoop
 
 1. Setup Apache Hadoop v1.0.4.(http://hadoop.apache.org/#Getting+Started). The base directory will be referred as 'hadoop-1.0.4' in the following steps.
 
 2. Execute the following commands in the snackfs project directory.
-```2.
+```
 [snackfs]$ sbt package
 ```
 
