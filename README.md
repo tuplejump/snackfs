@@ -16,7 +16,11 @@ SnackFS cluster is also more resilient than a HDFS cluster as there is no SPOF l
 
 ### Use the binary
 
-* You can download the SnackFS distribution built with [Scala 2.9.x here](http://bit.ly/1eKV1ae) and [Scala 2.10.x here](http://bit.ly/1jI7vVw)
+* You can download the SnackFS distribution built with for the appropriate version of Scala and Cassandra
+    - [Scala 2.9.x and Cassandra 1.2.x](http://bit.ly/1kZGAEL)
+    - [Scala 2.10.x and Cassandra 1.2.x](http://bit.ly/1f6AvRH)
+    - [Scala 2.9.x and Cassandra 2.0.x](http://bit.ly/1nbJiZ2)
+    - [Scala 2.10.x and Cassandra 2.0.x](http://bit.ly/1f6BjGj)
 
 * To add SnackFS to your SBT project use,
 
