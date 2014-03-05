@@ -10,7 +10,7 @@ SnackFS cluster is also more resilient than a HDFS cluster as there is no SPOF l
 
 1. SBT : It can be set up from the instructions [here](http://www.scala-sbt.org/release/docs/Getting-Started/Setup.html#installing-sbt).
 
-2. Cassandra(v1.2.12) : Instructions can be found [here](http://wiki.apache.org/cassandra/GettingStarted). An easier alternative would be using [CCM](https://github.com/pcmanus/ccm)
+2. Cassandra (v1.2.12 or v2.0.5) : Instructions can be found [here](http://wiki.apache.org/cassandra/GettingStarted). An easier alternative would be using [CCM](https://github.com/pcmanus/ccm)
 
 ## Using SnackFS
 
@@ -22,28 +22,23 @@ SnackFS cluster is also more resilient than a HDFS cluster as there is no SPOF l
 
 For SBT
 ```scala
-"com.tuplejump" %% "snackfs" % "0.6.1-EA"
+"com.tuplejump" %% "snackfs" % "[SNACKFS_VERSION]"
 ```
 
-* To add SnackFS to your Maven project use,
-with Scala 2.9.3 use,
+* To add SnackFS to your Maven project use this snippet with the appropriate Scala and SnackFS version
 
 ```xml
 <dependency>
   <groupId>com.tuplejump</groupId>
-  <artifactId>snackfs_2.9.3</artifactId>
-  <version>0.6.1-EA</version>
+  <artifactId>snackfs_[scala_version]</artifactId>
+  <version>[SNACKFS_VERSION]</version>
 </dependency>
 ```
 
-And with Scala 2.10.3,
-```xml
-<dependency>
-  <groupId>com.tuplejump</groupId>
-  <artifactId>snackfs_2.10</artifactId>
-  <version>0.6.1-EA</version>
-</dependency>
-```
+Where SnackFS version is **0.6.2-EA** for use with *Cassandra 1.2.x*
+And **0.6.2-C2-EA** for use with *Cassandra 2.0.x*
+
+The Scala version is **2.9.3** for *Scala 2.9.x* and **2.10** for use with *Scala 2.10.x*
 
 ### Build from Source
 

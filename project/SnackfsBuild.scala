@@ -22,11 +22,13 @@ import sbt.Keys._
 
 object SnackfsBuild extends Build {
 
-  lazy val VERSION = "0.6.1-EA"
+  lazy val USE_CASV2 = System.getenv("USE_CASV2") != null && System.getenv("USE_CASV2").equalsIgnoreCase("true")
 
-  lazy val CAS_VERSION = "1.2.12"
+  lazy val VERSION = "0.6.2-" + (if (USE_CASV2) "C2-EA" else "EA")
 
-  lazy val THRIFT_VERSION = "0.7.0"
+  lazy val CAS_VERSION = if (USE_CASV2) "2.0.5" else "1.2.12"
+
+  lazy val THRIFT_VERSION = if (USE_CASV2) "0.9.1" else "0.7.0"
 
   lazy val TWITTER_UTIL_VERSION = "6.7.0"
 
@@ -51,19 +53,18 @@ object SnackfsBuild extends Build {
       </developers>
   }
 
-  def sparkDependency(scalaVersion: String) =
-    scalaVersion match {
-      case "2.9.3" => "org.apache.spark" %% "spark-core" % "0.8.1-incubating"
-      case "2.10.3" => "org.apache.spark" %% "spark-core" % "0.9.0-incubating"
-      case x => "org.apache.spark" %% "spark-core" % "0.9.0-incubating"
-    }
-
 
   lazy val dependencies = Seq("org.apache.hadoop" % "hadoop-core" % "1.0.4" % "provided",
     "org.apache.cassandra" % "cassandra-thrift" % CAS_VERSION intransitive(),
     "org.apache.cassandra" % "cassandra-all" % CAS_VERSION intransitive(),
     "org.apache.thrift" % "libthrift" % THRIFT_VERSION exclude("org.slf4j", "slf4j-api") exclude("javax.servlet", "servlet-api"),
     "commons-pool" % "commons-pool" % "1.6",
+    "org.slf4j" % "slf4j-api" % "1.7.2" % "provided",
+    "com.google.guava" % "guava" % "14.0.1" % "provided",
+    "org.codehaus.jackson" % "jackson-core-asl" % "1.8.8" % "provided",
+    "org.codehaus.jackson" % "jackson-mapper-asl" % "1.8.8" % "provided",
+    "log4j" % "log4j" % "1.2.17" % "provided",
+    "org.slf4j" % "slf4j-log4j12" % "1.7.2" % "provided",
     "com.twitter" % "util-logging" % TWITTER_UTIL_VERSION cross CrossVersion.binaryMapped {
       case "2.9.3" => "2.9.2"
       case "2.10.3" => "2.10"
@@ -82,6 +83,8 @@ object SnackfsBuild extends Build {
 
     version := VERSION,
 
+    scalaVersion := "2.9.3",
+
     crossScalaVersions := Seq("2.9.3", "2.10.3"),
 
     parallelExecution in Test := false,
@@ -89,8 +92,6 @@ object SnackfsBuild extends Build {
     retrieveManaged := true,
 
     libraryDependencies ++= dependencies,
-
-    libraryDependencies <+= (scalaVersion)(sparkDependency),
 
     parallelExecution in Test := false,
 
@@ -199,14 +200,14 @@ object SnackfsBuild extends Build {
     val cassandra = jarSource + "org.apache.cassandra/"
     val cassandraRelated = List(cassandra + "cassandra-all/cassandra-all-" + CAS_VERSION + ".jar",
       cassandra + "cassandra-thrift/cassandra-thrift-" + CAS_VERSION + ".jar",
-      jarSource + "org.apache.thrift/libthrift/libthrift-0.7.0.jar",
+      jarSource + "org.apache.thrift/libthrift/libthrift-" + THRIFT_VERSION + ".jar",
       jarSource + "commons-pool/commons-pool/commons-pool-1.6.jar"
     )
 
     val hadoopRelated = List(jarSource + "org.apache.hadoop/hadoop-core/hadoop-core-1.0.4.jar",
       jarSource + "commons-cli/commons-cli/commons-cli-1.2.jar",
       jarSource + "commons-configuration/commons-configuration/commons-configuration-1.6.jar",
-      jarSource + "commons-lang/commons-lang/commons-lang-2.5.jar",
+      jarSource + "commons-lang/commons-lang/commons-lang-2.4.jar",
       jarSource + "commons-logging/commons-logging/commons-logging-1.1.1.jar"
     )
 
