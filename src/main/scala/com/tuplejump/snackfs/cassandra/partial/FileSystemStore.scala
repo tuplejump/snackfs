@@ -18,39 +18,39 @@
  */
 package com.tuplejump.snackfs.cassandra.partial
 
-import scala.concurrent.Future
 import org.apache.hadoop.fs.Path
 import java.util.UUID
 import java.nio.ByteBuffer
 import java.io.InputStream
 import com.tuplejump.snackfs.fs.model._
 import com.tuplejump.snackfs.cassandra.model.{GenericOpSuccess, Keyspace}
+import scala.util.Try
 
 trait FileSystemStore {
 
-  def createKeyspace: Future[Keyspace]
+  def createKeyspace: Try[Keyspace]
 
   def init: Unit
 
-  def storeINode(path: Path, iNode: INode): Future[GenericOpSuccess]
+  def storeINode(path: Path, iNode: INode): Try[GenericOpSuccess]
 
-  def retrieveINode(path: Path): Future[INode]
+  def retrieveINode(path: Path): Try[INode]
 
-  def storeSubBlock(blockId: UUID, subBlockMeta: SubBlockMeta, data: ByteBuffer): Future[GenericOpSuccess]
+  def storeSubBlock(blockId: UUID, subBlockMeta: SubBlockMeta, data: ByteBuffer): Try[GenericOpSuccess]
 
-  def retrieveSubBlock(blockId: UUID, subBlockId: UUID, byteRangeStart: Long): Future[InputStream]
+  def retrieveSubBlock(blockId: UUID, subBlockId: UUID, byteRangeStart: Long): Try[InputStream]
 
   def retrieveBlock(blockMeta: BlockMeta): InputStream
 
-  def deleteINode(path: Path): Future[GenericOpSuccess]
+  def deleteINode(path: Path): Try[GenericOpSuccess]
 
-  def deleteBlocks(iNode: INode): Future[GenericOpSuccess]
+  def deleteBlocks(iNode: INode): Try[GenericOpSuccess]
 
-  def fetchSubPaths(path: Path, isDeepFetch: Boolean): Future[Set[Path]]
+  def fetchSubPaths(path: Path, isDeepFetch: Boolean): Try[Set[Path]]
 
-  def getBlockLocations(path: Path): Future[Map[BlockMeta, List[String]]]
+  def getBlockLocations(path: Path): Try[Map[BlockMeta, List[String]]]
 
-  def acquireFileLock(path:Path,processId:UUID):Future[Boolean]
+  def acquireFileLock(path:Path,processId:UUID):Try[Boolean]
 
-  def releaseFileLock(path:Path):Future[Boolean]
+  def releaseFileLock(path:Path):Try[Boolean]
 }

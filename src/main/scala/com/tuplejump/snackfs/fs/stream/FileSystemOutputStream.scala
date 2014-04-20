@@ -89,7 +89,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
   private def endSubBlock() = {
     if (position != 0) {
       val subBlockMeta = SubBlockMeta(UUIDGen.getTimeUUID, subBlockOffset, position)
-      log.debug("storing subblock")
+      log.debug("storing subBlock")
       Await.ready(store.storeSubBlock(blockId, subBlockMeta, ByteBuffer.wrap(outBuffer)), atMost)
 
       subBlockOffset += position
