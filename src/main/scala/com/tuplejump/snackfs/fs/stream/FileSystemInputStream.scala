@@ -20,8 +20,6 @@ package com.tuplejump.snackfs.fs.stream
 
 import org.apache.hadoop.fs.{Path, FSInputStream}
 import java.io.{IOException, InputStream}
-import scala.concurrent.Await
-import scala.concurrent.duration._
 import com.twitter.logging.Logger
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
 
@@ -29,7 +27,7 @@ case class FileSystemInputStream(store: FileSystemStore, path: Path) extends FSI
 
   private lazy val log = Logger.get(getClass)
 
-  private val INODE = Await.result(store.retrieveINode(path), 10 seconds)
+  private val INODE = store.retrieveINode(path).get//TODO handle errors
   private val FILE_LENGTH: Long = INODE.blocks.map(_.length).sum
 
   private var currentPosition: Long = 0L

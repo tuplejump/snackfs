@@ -24,7 +24,6 @@ import org.apache.cassandra.utils.UUIDGen
 import java.util.UUID
 import java.nio.ByteBuffer
 import org.apache.hadoop.fs.permission.FsPermission
-import scala.concurrent.Await
 import scala.concurrent.duration._
 import com.tuplejump.snackfs.fs.model._
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
@@ -90,7 +89,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
     if (position != 0) {
       val subBlockMeta = SubBlockMeta(UUIDGen.getTimeUUID, subBlockOffset, position)
       log.debug("storing subBlock")
-      Await.ready(store.storeSubBlock(blockId, subBlockMeta, ByteBuffer.wrap(outBuffer)), atMost)
+      store.storeSubBlock(blockId, subBlockMeta, ByteBuffer.wrap(outBuffer)).get//TODO handle errors
 
       subBlockOffset += position
       bytesWrittenToBlock += position
@@ -110,7 +109,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
     val iNode = INode(user, user, permissions, FileType.FILE, blocksMeta, timestamp)
 
     log.debug("storing/updating block details for INode at %s", path)
-    Await.ready(store.storeINode(path, iNode), atMost)
+    store.storeINode(path, iNode).get//TODO handle errors
 
     blockOffset += subBlockLengths.asInstanceOf[Int]
     subBlocksMeta = List()

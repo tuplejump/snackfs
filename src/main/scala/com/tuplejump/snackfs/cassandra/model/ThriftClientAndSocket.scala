@@ -19,6 +19,6 @@
 package com.tuplejump.snackfs.cassandra.model
 
 import org.apache.cassandra.thrift.Cassandra.{Client, AsyncClient}
-import org.apache.thrift.transport.TNonblockingSocket
+import org.apache.thrift.transport.{TSocket, TNonblockingSocket}
 
-case class ThriftClientAndSocket(client: Client, socket: TNonblockingSocket)
+case class ThriftClientAndSocket(client: Client, socket: TSocket)

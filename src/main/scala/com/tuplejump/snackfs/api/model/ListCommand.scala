@@ -36,7 +36,7 @@ object ListCommand extends Command {
 
     var result: Array[FileStatus] = Array()
     val absolutePath = path
-    val mayBeFile = Try(Await.result(store.retrieveINode(absolutePath), atMost))
+    val mayBeFile = store.retrieveINode(absolutePath)
 
     mayBeFile match {
       case Success(file: INode) =>
@@ -47,7 +47,7 @@ object ListCommand extends Command {
 
         } else {
           log.debug("fetching status for %s")
-          val subPaths = Await.result(store.fetchSubPaths(absolutePath, isDeepFetch = false), atMost)
+          val subPaths = store.fetchSubPaths(absolutePath, isDeepFetch = false).get//TODO handle errors
           result = subPaths.map(p => FileStatusCommand(store, p, atMost)).toArray
         }
 

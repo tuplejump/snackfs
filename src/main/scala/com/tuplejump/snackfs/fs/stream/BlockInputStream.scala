@@ -24,6 +24,7 @@ import scala.concurrent.duration._
 import com.twitter.logging.Logger
 import com.tuplejump.snackfs.fs.model._
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
+import scala.util.Failure
 
 case class
 BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, atMost: FiniteDuration) extends InputStream {
@@ -55,13 +56,13 @@ BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, atMost: FiniteDur
     targetSubBlockSize = subBlock.length
     targetSubBlockOffset = subBlock.offset
     log.debug("fetching subBlock for block %s and position %s", blockMeta.id.toString, targetPosition.toString)
-    Await.result(store.retrieveSubBlock(blockMeta.id, subBlock.id, offset), atMost)
+    store.retrieveSubBlock(blockMeta.id, subBlock.id, offset).get//TODO handle errors
   }
 
   def read: Int = {
     if (isClosed) {
       val ex = new IOException("Stream closed")
-      log.error(ex,"Failed to read as stream is closed")
+      log.error(ex, "Failed to read as stream is closed")
       throw ex
     }
     var result = -1
@@ -83,17 +84,17 @@ BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, atMost: FiniteDur
   override def read(buf: Array[Byte], off: Int, len: Int): Int = {
     if (isClosed) {
       val ex = new IOException("Stream closed")
-      log.error(ex,"Failed to read as stream is closed")
+      log.error(ex, "Failed to read as stream is closed")
       throw ex
     }
     if (buf == null) {
       val ex = new NullPointerException
-      log.error(ex,"Failed to read as output buffer is null")
+      log.error(ex, "Failed to read as output buffer is null")
       throw ex
     }
     if ((off < 0) || (len < 0) || (len > buf.length - off)) {
       val ex = new IndexOutOfBoundsException
-      log.error(ex,"Failed to read as one of offset,length or output buffer length is invalid")
+      log.error(ex, "Failed to read as one of offset,length or output buffer length is invalid")
       throw ex
     }
     var result = 0

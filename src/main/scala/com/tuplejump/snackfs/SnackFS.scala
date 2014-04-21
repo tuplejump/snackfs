@@ -22,7 +22,6 @@ import java.net.URI
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
 import org.apache.hadoop.conf.Configuration
-import scala.concurrent.Await
 import scala.concurrent.duration._
 
 import org.apache.hadoop.fs._
@@ -63,7 +62,7 @@ case class SnackFS() extends FileSystem {
 
     store = new ThriftStore(customConfiguration)
     atMost = customConfiguration.atMost
-    Await.ready(store.createKeyspace, atMost)
+    store.createKeyspace//TODO handle errors
     store.init
 
     log.debug("creating base directory")
@@ -134,7 +133,7 @@ case class SnackFS() extends FileSystem {
 
   def getFileBlockLocations(path: Path, start: Long, len: Long): Array[BlockLocation] = {
     log.debug("fetching block locations for %s", path)
-    val blocks: Map[BlockMeta, List[String]] = Await.result(store.getBlockLocations(path), atMost)
+    val blocks: Map[BlockMeta, List[String]] = store.getBlockLocations(path).get//TODO handle errors
     val locs = blocks.filterNot(x => x._1.offset + x._1.length < start)
     val locsMap = locs.map {
       case (b, ips) =>

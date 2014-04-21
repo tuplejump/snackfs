@@ -36,7 +36,7 @@ object MakeDirectoryCommand extends Command {
                     filePermission: FsPermission,
                     atMost: FiniteDuration): Boolean = {
 
-    val mayBeFile = Try(Await.result(store.retrieveINode(filePath), atMost))
+    val mayBeFile = store.retrieveINode(filePath)
     var result = true
 
     mayBeFile match {
@@ -51,7 +51,7 @@ object MakeDirectoryCommand extends Command {
         val timestamp = System.currentTimeMillis()
         val iNode = INode(user, user, filePermission, FileType.DIRECTORY, null, timestamp)
         log.debug("Creating directory for path %s", filePath)
-        Await.ready(store.storeINode(filePath, iNode), atMost)
+        store.storeINode(filePath, iNode)//TODO handle errors
     }
     result
   }

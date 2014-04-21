@@ -25,7 +25,7 @@ import org.apache.cassandra.thrift._
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import java.nio.ByteBuffer
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 import org.apache.hadoop.fs.Path
 import java.math.BigInteger
 import java.util.UUID
@@ -113,7 +113,6 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
       override def close() {
         super.close()
-        getFactory.asInstanceOf[ClientPoolFactory].closePool()
       }
 
     }
@@ -529,40 +528,47 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
     result
   }
 
-  def acquireFileLock(path: Path, processId: UUID): Try[Boolean] = executeWithClient({
+  def acquireFileLock(path: Path, processId: UUID): Boolean = executeWithClient({
     client =>
       log.debug("adding column for create lock")
       val mayBeAddedColumn = addLockColumn(path, processId, client)
-      mayBeAddedColumn flatMap {
-        s =>
+      mayBeAddedColumn match {
+        case Success(s) =>
           log.debug("added column for create lock")
           val mayBeRow = getLockRow(path, client)
           log.debug("getting row for create lock")
-          mayBeRow map {
-            rowData =>
+          mayBeRow match {
+            case Success(rowData) =>
               isCreator(processId, rowData)
+            case Failure(e) =>
+              log.error(e, "failure in the fetching creator details to acquire lock for " + path)
+              throw e
           }
+        case Failure(e) =>
+          log.error(e, "failure in adding column to acquire lock for " + path)
+          throw e
       }
   })
 
-  private def deleteLockRow(path: Path, client: Client): Try[GenericOpSuccess] = {
+  private def deleteLockRow(path: Path, client: Client): Try[Unit] = {
     val columnPath = new ColumnPath(LOCK_COLUMN_FAMILY_NAME)
     val timestamp = System.currentTimeMillis
 
     val mayBeDeleted = Try(client.remove(getPathKey(path), columnPath, timestamp, ConsistencyLevel.QUORUM))
 
-    mayBeDeleted map {
-      u => GenericOpSuccess()
-    }
+    mayBeDeleted
   }
 
-  def releaseFileLock(path: Path): Try[Boolean] = executeWithClient({
+  def releaseFileLock(path: Path): Boolean = executeWithClient({
     client =>
       val mayBeDeletedLock = deleteLockRow(path, client)
-      mayBeDeletedLock map {
-        res =>
+      mayBeDeletedLock match {
+        case Success(status) =>
           log.debug("deleted lock")
           true
+        case Failure(e) =>
+          log.debug("failed to delete lock for %s", path)
+          false
       }
   })
 

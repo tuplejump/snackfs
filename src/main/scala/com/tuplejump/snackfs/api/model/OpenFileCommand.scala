@@ -38,7 +38,7 @@ object OpenFileCommand extends Command {
             bufferSize: Int,
             atMost: FiniteDuration): FSDataInputStream = {
 
-    val mayBeFile = Try(Await.result(store.retrieveINode(filePath), atMost))
+    val mayBeFile = store.retrieveINode(filePath)
 
     mayBeFile match {
       case Success(file: INode) =>

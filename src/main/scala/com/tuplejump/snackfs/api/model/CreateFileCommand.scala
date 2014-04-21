@@ -18,8 +18,7 @@
  */
 package com.tuplejump.snackfs.api.model
 
-import scala.concurrent.Await
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Success}
 import java.io.IOException
 import org.apache.hadoop.fs.permission.FsPermission
 import com.tuplejump.snackfs.fs.model.{FileType, INode}
@@ -50,11 +49,11 @@ object CreateFileCommand extends Command {
             subBlockSize: Long,
             atMost: FiniteDuration): FSDataOutputStream = {
 
-    val isCreatePossible = Await.result(store.acquireFileLock(filePath, processId), atMost)
+    val isCreatePossible = store.acquireFileLock(filePath, processId)
     if (isCreatePossible) {
 
       try {
-        val mayBeFile = Try(Await.result(store.retrieveINode(filePath), atMost))
+        val mayBeFile = store.retrieveINode(filePath)
         mayBeFile match {
 
           case Success(file: INode) =>
@@ -82,7 +81,7 @@ object CreateFileCommand extends Command {
         val permissions = FsPermission.getDefault
         val timestamp = System.currentTimeMillis()
         val iNode = INode(user, user, permissions, FileType.FILE, List(), timestamp)
-        Await.ready(store.storeINode(filePath, iNode), atMost)
+        store.storeINode(filePath, iNode) //TODO handle failure for this
 
         val fileStream = new FileSystemOutputStream(store, filePath, blockSize, subBlockSize, bufferSize, atMost)
         val fileDataStream = new FSDataOutputStream(fileStream, statistics)

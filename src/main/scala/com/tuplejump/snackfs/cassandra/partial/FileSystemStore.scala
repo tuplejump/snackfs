@@ -50,7 +50,7 @@ trait FileSystemStore {
 
   def getBlockLocations(path: Path): Try[Map[BlockMeta, List[String]]]
 
-  def acquireFileLock(path:Path,processId:UUID):Try[Boolean]
+  def acquireFileLock(path: Path, processId: UUID): Boolean
 
-  def releaseFileLock(path:Path):Try[Boolean]
+  def releaseFileLock(path: Path): Boolean
 }

@@ -36,7 +36,7 @@ object FileStatusCommand extends Command {
             atMost: FiniteDuration): FileStatus = {
 
     log.debug("getting status for %s", filePath)
-    val maybeFile = Try(Await.result(store.retrieveINode(filePath), atMost))
+    val maybeFile = Try(store.retrieveINode(filePath))
 
     maybeFile match {
       case Success(file: INode) => SnackFileStatus(file, filePath)

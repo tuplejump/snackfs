@@ -17,8 +17,7 @@
  */
 package com.tuplejump.snackfs.api.model
 
-import scala.util.{Failure, Success, Try}
-import scala.concurrent.Await
+import scala.util.{Failure, Success}
 import com.tuplejump.snackfs.fs.model.INode
 import java.io.IOException
 import scala.concurrent.duration.FiniteDuration
@@ -37,7 +36,7 @@ object DeleteCommand extends Command {
             atMost: FiniteDuration): Boolean = {
 
     val absolutePath = srcPath
-    val mayBeSrc = Try(Await.result(store.retrieveINode(absolutePath), atMost))
+    val mayBeSrc = store.retrieveINode(absolutePath)
     var result = true
 
     mayBeSrc match {
@@ -45,15 +44,15 @@ object DeleteCommand extends Command {
       case Success(src: INode) =>
         if (src.isFile) {
           log.debug("deleting file %s", srcPath)
-          Await.ready(store.deleteINode(absolutePath), atMost)
-          Await.ready(store.deleteBlocks(src), atMost)
+          store.deleteINode(absolutePath)//TODO handle errors
+          store.deleteBlocks(src)//TODO handle errors
 
         } else {
           val contents = ListCommand(store, srcPath, atMost)
 
           if (contents.length == 0) {
             log.debug("deleting directory %s", srcPath)
-            Await.ready(store.deleteINode(absolutePath), atMost)
+            store.deleteINode(absolutePath)//TODO handle errors
 
           } else if (!isRecursive) {
             val ex = new IOException("Directory is not empty")
@@ -63,7 +62,7 @@ object DeleteCommand extends Command {
           } else {
             log.debug("deleting directory %s and all its contents", srcPath)
             result = contents.map(p => DeleteCommand(store, p.getPath, isRecursive, atMost)).reduce(_ && _)
-            Await.ready(store.deleteINode(absolutePath), atMost)
+            store.deleteINode(absolutePath)//TODO handle errors
           }
         }
 
