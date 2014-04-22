@@ -19,12 +19,10 @@
 package com.tuplejump.snackfs.fs.stream
 
 import java.io.{IOException, InputStream}
-import scala.concurrent.Await
 import scala.concurrent.duration._
 import com.twitter.logging.Logger
 import com.tuplejump.snackfs.fs.model._
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
-import scala.util.Failure
 
 case class
 BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, atMost: FiniteDuration) extends InputStream {

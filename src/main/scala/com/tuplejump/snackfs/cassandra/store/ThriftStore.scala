@@ -77,6 +77,11 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
     ret
   }
 
+  /**
+   * Creates the keyspace required for SnackFS.
+   * It does not use executeWithClient since the keyspace is not already there
+   * @return
+   */
   def createKeyspace: Try[Keyspace] = {
 
     val protocolFactory = new TBinaryProtocol.Factory()
@@ -84,6 +89,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
     val socket = new TSocket(configuration.CassandraHost, configuration.CassandraPort)
     val transport = new TFramedTransport(socket)
+    transport.open()
     val client = clientFactory.getClient(protocolFactory.getProtocol(transport))
 
     val ksDef = buildSchema
@@ -101,7 +107,8 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
         log.debug("Created keyspace %s", ksDef.getName)
         new Keyspace(r)
     }
-
+    transport.close()
+    socket.close()
     ret
   }
 

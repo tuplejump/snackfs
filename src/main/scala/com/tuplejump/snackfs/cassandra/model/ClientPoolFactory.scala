@@ -20,14 +20,9 @@
 package com.tuplejump.snackfs.cassandra.model
 
 import org.apache.commons.pool.BasePoolableObjectFactory
-import org.apache.thrift.async.TAsyncClientManager
 import org.apache.thrift.protocol.TBinaryProtocol
-import org.apache.cassandra.thrift.Cassandra.{Client, AsyncClient}
-import org.apache.thrift.transport.{TFramedTransport, TSocket, TNonblockingSocket}
-import scala.concurrent.Await
-import com.tuplejump.snackfs.util.AsyncUtil
-import org.apache.cassandra.thrift.Cassandra.AsyncClient.set_keyspace_call
-import scala.concurrent.duration._
+import org.apache.cassandra.thrift.Cassandra.Client
+import org.apache.thrift.transport.{TFramedTransport, TSocket}
 
 import com.twitter.logging.Logger
 import scala.util.{Failure, Success, Try}
@@ -42,13 +37,14 @@ class ClientPoolFactory(host: String, port: Int, keyspace: String) extends BaseP
   def makeObject(): ThriftClientAndSocket = {
     val socket = new TSocket(host, port)
     val transport = new TFramedTransport(socket)
+    transport.open()
     val client = clientFactory.getClient(protocolFactory.getProtocol(transport))
 
     val x = Try(client.set_keyspace(keyspace))
     x match {
       case Success(s) =>
         log.debug("set keyspace %s for client", keyspace)
-        ThriftClientAndSocket(client, socket)
+        ThriftClientAndSocket(client, socket,transport)
 
       case Failure(e) =>
         log.error(e, "failed to set keyspace %s for client ", keyspace)
@@ -57,6 +53,7 @@ class ClientPoolFactory(host: String, port: Int, keyspace: String) extends BaseP
   }
 
   override def destroyObject(obj: ThriftClientAndSocket) {
+    obj.transport.close()
     obj.socket.close()
     super.destroyObject(obj)
   }
