@@ -33,6 +33,8 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
                                   blockSize: Long, subBlockSize: Long,
                                   bufferSize: Long, atMost: FiniteDuration) extends OutputStream {
 
+  //QUESTION: What is buffersize used for?
+
   private lazy val log = Logger.get(getClass)
 
   private var isClosed: Boolean = false
@@ -42,7 +44,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
   private var subBlockOffset = 0
   private var blockOffset = 0
   private var position = 0
-  private var outBuffer = Array.empty[Byte]
+  private var outBuffer = ByteBuffer.allocate(subBlockSize.toInt)
 
   private var subBlocksMeta = List[SubBlockMeta]()
   private var blocksMeta = List[BlockMeta]()
@@ -57,7 +59,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
       log.error(ex, "Failed to write as stream is closed")
       throw ex
     }
-    outBuffer = outBuffer ++ Array(p1.toByte)
+    outBuffer = outBuffer.put(p1.toByte)
     position += 1
     if (position == subBlockSize) {
       flush()
@@ -74,8 +76,9 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
     var offsetTemp = offset
     while (lengthTemp > 0) {
       val lengthToWrite = math.min(subBlockSize - position, lengthTemp).asInstanceOf[Int]
+
       val slice: Array[Byte] = buf.slice(offsetTemp, offsetTemp + lengthToWrite)
-      outBuffer = outBuffer ++ slice
+      outBuffer = outBuffer.put(slice)
       lengthTemp -= lengthToWrite
       offsetTemp += lengthToWrite
       position += lengthToWrite
@@ -89,13 +92,16 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
     if (position != 0) {
       val subBlockMeta = SubBlockMeta(UUIDGen.getTimeUUID, subBlockOffset, position)
       log.debug("storing subBlock")
-      store.storeSubBlock(blockId, subBlockMeta, ByteBuffer.wrap(outBuffer)).get//TODO handle errors
+      outBuffer.limit(outBuffer.position).position(0)
+      store.storeSubBlock(blockId, subBlockMeta, outBuffer).get //TODO handle errors
 
       subBlockOffset += position
       bytesWrittenToBlock += position
       subBlocksMeta = subBlocksMeta :+ subBlockMeta
       position = 0
-      outBuffer = Array.empty[Byte]
+      outBuffer.clear()
+      outBuffer.rewind()
+      //outBuffer = Array.empty[Byte]
     }
   }
 
@@ -109,7 +115,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
     val iNode = INode(user, user, permissions, FileType.FILE, blocksMeta, timestamp)
 
     log.debug("storing/updating block details for INode at %s", path)
-    store.storeINode(path, iNode).get//TODO handle errors
+    store.storeINode(path, iNode).get //TODO handle errors
 
     blockOffset += subBlockLengths.asInstanceOf[Int]
     subBlocksMeta = List()

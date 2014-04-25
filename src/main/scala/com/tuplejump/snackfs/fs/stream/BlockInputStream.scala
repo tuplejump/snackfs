@@ -24,8 +24,7 @@ import com.twitter.logging.Logger
 import com.tuplejump.snackfs.fs.model._
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
 
-case class
-BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, atMost: FiniteDuration) extends InputStream {
+case class BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, atMost: FiniteDuration) extends InputStream {
   private lazy val log = Logger.get(getClass)
 
   private val LENGTH = blockMeta.length
