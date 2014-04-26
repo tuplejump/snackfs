@@ -68,7 +68,7 @@ object CreateFileCommand extends Command {
               throw ex
             }
 
-          case Failure(e: Exception) =>
+          case Failure(e: Throwable) =>
             val parentPath = filePath.getParent
 
             if (parentPath != null) {
@@ -83,7 +83,8 @@ object CreateFileCommand extends Command {
         val iNode = INode(user, user, permissions, FileType.FILE, List(), timestamp)
         store.storeINode(filePath, iNode) //TODO handle failure for this
 
-        val fileStream = new FileSystemOutputStream(store, filePath, blockSize, subBlockSize, bufferSize, atMost)
+        //bufferSize can be ignored since we are providing configurable blockSize and subBlockSize
+        val fileStream = new FileSystemOutputStream(store, filePath, blockSize, subBlockSize, atMost)
         val fileDataStream = new FSDataOutputStream(fileStream, statistics)
 
         fileDataStream

@@ -37,7 +37,7 @@ import org.apache.thrift.TBaseHelper
 
 case class FileSystemOutputStream(store: FileSystemStore, path: Path,
                                   blockSize: Long, subBlockSize: Long,
-                                  bufferSize: Long, atMost: FiniteDuration) extends OutputStream {
+                                  atMost: FiniteDuration) extends OutputStream {
 
   private lazy val log = Logger.get(getClass)
 

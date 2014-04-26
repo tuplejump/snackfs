@@ -27,7 +27,6 @@ import com.twitter.logging.Logger
 import scala.concurrent.duration.FiniteDuration
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
 import com.tuplejump.snackfs.api.partial.Command
-
 object MakeDirectoryCommand extends Command {
   private lazy val log = Logger.get(getClass)
 
@@ -46,7 +45,7 @@ object MakeDirectoryCommand extends Command {
           result = false
         }
 
-      case Failure(e: Exception) =>
+      case Failure(e: Throwable) =>
         val user = System.getProperty("user.name")
         val timestamp = System.currentTimeMillis()
         val iNode = INode(user, user, filePermission, FileType.DIRECTORY, null, timestamp)

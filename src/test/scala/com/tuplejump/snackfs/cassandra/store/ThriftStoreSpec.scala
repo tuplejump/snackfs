@@ -122,7 +122,6 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
     store.storeINode(path3, iNode).get
 
     val result = store.fetchSubPaths(path1, isDeepFetch = true).get
-    //println(result.toString())
 
     result.size must be(2)
   }
@@ -139,7 +138,6 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
     store.storeINode(path3, iNode).get
 
     val result = store.fetchSubPaths(path1, isDeepFetch = false).get
-    //println(result.toString())
 
     result.size must be(1)
   }

@@ -53,7 +53,7 @@ object OpenFileCommand extends Command {
           fileStream
         }
 
-      case Failure(e: Exception) =>
+      case Failure(e: Throwable) =>
         val ex = new IOException("No such file.")
         log.error(ex, "Failed to open file %s as it doesnt exist", filePath)
         throw ex

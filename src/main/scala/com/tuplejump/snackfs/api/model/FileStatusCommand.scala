@@ -19,8 +19,7 @@
 package com.tuplejump.snackfs.api.model
 
 import scala.concurrent.duration.FiniteDuration
-import scala.util.{Failure, Success, Try}
-import scala.concurrent.Await
+import scala.util.{Failure, Success}
 import com.tuplejump.snackfs.fs.model.INode
 import java.io.FileNotFoundException
 import com.twitter.logging.Logger
