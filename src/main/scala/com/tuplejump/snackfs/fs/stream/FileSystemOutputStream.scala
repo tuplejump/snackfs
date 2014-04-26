@@ -32,7 +32,7 @@ import scala.concurrent.{Await, Future}
 import com.tuplejump.snackfs.cassandra.model.GenericOpSuccess
 import org.apache.cassandra.thrift.{TimedOutException, UnavailableException}
 import scala.concurrent.ExecutionContext.Implicits.global
-import org.apache.thrift.TBaseHelper
+import com.tuplejump.snackfs.util.TryHelper
 
 
 case class FileSystemOutputStream(store: FileSystemStore, path: Path,
@@ -95,7 +95,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
 
   private def storeSubblock(_blockId: UUID, _subBlockMeta: SubBlockMeta, _data: ByteBuffer) {
     val f = Future {
-      store.storeSubBlock(_blockId, _subBlockMeta, _data).get //TODO handle errors
+      TryHelper.handleFailure[(UUID, SubBlockMeta, ByteBuffer), GenericOpSuccess]((store.storeSubBlock _).tupled, (_blockId, _subBlockMeta, _data)).get
     }
 
     subblocksWriteQueue :+= f
@@ -157,7 +157,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
     val timestamp = System.currentTimeMillis()
     val iNode = INode(user, user, permissions, FileType.FILE, blocksMeta, timestamp)
     log.debug("storing/updating block details for INode at %s", path)
-    store.storeINode(path, iNode).get //TODO handle errors
+    TryHelper.handleFailure[(Path, INode), GenericOpSuccess]((store.storeINode _).tupled, (path, iNode))
   }
 
   override def flush() = {

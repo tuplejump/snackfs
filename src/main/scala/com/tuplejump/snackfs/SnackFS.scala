@@ -32,6 +32,7 @@ import com.tuplejump.snackfs.fs.model.BlockMeta
 import com.tuplejump.snackfs.cassandra.store.ThriftStore
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
 import com.tuplejump.snackfs.cassandra.model.SnackFSConfiguration
+import com.tuplejump.snackfs.util.TryHelper
 
 case class SnackFS() extends FileSystem {
 
@@ -62,7 +63,7 @@ case class SnackFS() extends FileSystem {
 
     store = new ThriftStore(customConfiguration)
     atMost = customConfiguration.atMost
-    store.createKeyspace//TODO handle errors
+    store.createKeyspace
     store.init
 
     log.debug("creating base directory")
@@ -84,7 +85,8 @@ case class SnackFS() extends FileSystem {
   def getWorkingDirectory: Path = currentDirectory
 
   def open(path: Path, bufferSize: Int): FSDataInputStream = {
-    OpenFileCommand(store, path, bufferSize, atMost)
+    //bufferSize can be ignored since we are providing configurable blockSize and subBlockSize
+    OpenFileCommand(store, path, atMost)
   }
 
   def mkdirs(path: Path, permission: FsPermission): Boolean = {
@@ -96,7 +98,8 @@ case class SnackFS() extends FileSystem {
              bufferSize: Int, replication: Short, blockSize: Long,
              progress: Progressable): FSDataOutputStream = {
 
-    CreateFileCommand(store, filePath, permission, overwrite, bufferSize, replication,
+    //bufferSize can be ignored since we are providing configurable blockSize and subBlockSize
+    CreateFileCommand(store, filePath, permission, overwrite, replication,
       blockSize, progress, processId, statistics, subBlockSize, atMost)
   }
 
@@ -133,7 +136,8 @@ case class SnackFS() extends FileSystem {
 
   def getFileBlockLocations(path: Path, start: Long, len: Long): Array[BlockLocation] = {
     log.debug("fetching block locations for %s", path)
-    val blocks: Map[BlockMeta, List[String]] = store.getBlockLocations(path).get//TODO handle errors
+    val mayBeBlocks = TryHelper.handleFailure[(Path),Map[BlockMeta, List[String]]](store.getBlockLocations,path)
+    val blocks: Map[BlockMeta, List[String]] = mayBeBlocks.get
     val locs = blocks.filterNot(x => x._1.offset + x._1.length < start)
     val locsMap = locs.map {
       case (b, ips) =>

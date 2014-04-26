@@ -20,13 +20,15 @@ package com.tuplejump.snackfs.api.model
 
 import org.apache.hadoop.fs.Path
 import org.apache.hadoop.fs.permission.FsPermission
-import scala.util.{Failure, Success, Try}
-import scala.concurrent.Await
+import scala.util.{Failure, Success}
 import com.tuplejump.snackfs.fs.model.{FileType, INode}
 import com.twitter.logging.Logger
 import scala.concurrent.duration.FiniteDuration
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
 import com.tuplejump.snackfs.api.partial.Command
+import com.tuplejump.snackfs.util.TryHelper
+import com.tuplejump.snackfs.cassandra.model.GenericOpSuccess
+
 object MakeDirectoryCommand extends Command {
   private lazy val log = Logger.get(getClass)
 
@@ -50,7 +52,7 @@ object MakeDirectoryCommand extends Command {
         val timestamp = System.currentTimeMillis()
         val iNode = INode(user, user, filePermission, FileType.DIRECTORY, null, timestamp)
         log.debug("Creating directory for path %s", filePath)
-        store.storeINode(filePath, iNode)//TODO handle errors
+        TryHelper.handleFailure[(Path, INode), GenericOpSuccess]((store.storeINode _).tupled, (filePath, iNode))
     }
     result
   }

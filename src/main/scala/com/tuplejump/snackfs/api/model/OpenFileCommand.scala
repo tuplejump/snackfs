@@ -32,10 +32,8 @@ import com.tuplejump.snackfs.api.partial.Command
 object OpenFileCommand extends Command {
   private lazy val log = Logger.get(getClass)
 
-  //TODO check how bufferSize is applied
   def apply(store: FileSystemStore,
             filePath: Path,
-            bufferSize: Int,
             atMost: FiniteDuration): FSDataInputStream = {
 
     val mayBeFile = store.retrieveINode(filePath)

@@ -25,6 +25,8 @@ import org.apache.hadoop.fs.Path
 import com.twitter.logging.Logger
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
 import com.tuplejump.snackfs.api.partial.Command
+import com.tuplejump.snackfs.util.TryHelper
+import com.tuplejump.snackfs.cassandra.model.GenericOpSuccess
 
 
 object DeleteCommand extends Command {
@@ -44,15 +46,15 @@ object DeleteCommand extends Command {
       case Success(src: INode) =>
         if (src.isFile) {
           log.debug("deleting file %s", srcPath)
-          store.deleteINode(absolutePath)//TODO handle errors
-          store.deleteBlocks(src)//TODO handle errors
+          TryHelper.handleFailure[(Path), GenericOpSuccess](store.deleteINode, absolutePath)
+          TryHelper.handleFailure[(INode), GenericOpSuccess](store.deleteBlocks, src)
 
         } else {
           val contents = ListCommand(store, srcPath, atMost)
 
           if (contents.length == 0) {
             log.debug("deleting directory %s", srcPath)
-            store.deleteINode(absolutePath)//TODO handle errors
+            TryHelper.handleFailure[(Path), GenericOpSuccess](store.deleteINode, absolutePath)
 
           } else if (!isRecursive) {
             val ex = new IOException("Directory is not empty")
@@ -62,7 +64,7 @@ object DeleteCommand extends Command {
           } else {
             log.debug("deleting directory %s and all its contents", srcPath)
             result = contents.map(p => DeleteCommand(store, p.getPath, isRecursive, atMost)).reduce(_ && _)
-            store.deleteINode(absolutePath)//TODO handle errors
+            TryHelper.handleFailure[(Path), GenericOpSuccess](store.deleteINode, absolutePath)
           }
         }
 

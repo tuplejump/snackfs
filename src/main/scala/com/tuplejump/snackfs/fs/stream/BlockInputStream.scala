@@ -23,6 +23,8 @@ import scala.concurrent.duration._
 import com.twitter.logging.Logger
 import com.tuplejump.snackfs.fs.model._
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
+import com.tuplejump.snackfs.util.TryHelper
+import java.util.UUID
 
 case class BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, atMost: FiniteDuration) extends InputStream {
   private lazy val log = Logger.get(getClass)
@@ -53,7 +55,8 @@ case class BlockInputStream(store: FileSystemStore, blockMeta: BlockMeta, atMost
     targetSubBlockSize = subBlock.length
     targetSubBlockOffset = subBlock.offset
     log.debug("fetching subBlock for block %s and position %s", blockMeta.id.toString, targetPosition.toString)
-    store.retrieveSubBlock(blockMeta.id, subBlock.id, offset).get//TODO handle errors
+    val mayBeStream = TryHelper.handleFailure[(UUID, UUID, Long), InputStream]((store.retrieveSubBlock _).tupled, (blockMeta.id, subBlock.id, offset))
+    mayBeStream.get
   }
 
   def read: Int = {

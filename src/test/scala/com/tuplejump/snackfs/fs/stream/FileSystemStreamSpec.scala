@@ -71,7 +71,7 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
     val path = new Path(pathURI)
     val maxBlockSize = 500
     val maxSubBlockSize = 50
-    val outputStream = FileSystemOutputStream(store, path, maxBlockSize, maxSubBlockSize, data.length,snackFSConfiguration.atMost)
+    val outputStream = FileSystemOutputStream(store, path, maxBlockSize, maxSubBlockSize,snackFSConfiguration.atMost)
     outputStream.write(data, 0, data.length)
     outputStream.close()
 
