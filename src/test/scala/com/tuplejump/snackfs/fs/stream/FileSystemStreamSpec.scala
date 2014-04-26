@@ -47,7 +47,7 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
     val dataString: String = "Test Subblock insertion"
     val data = ByteBufferUtil.bytes(dataString)
 
-    val outputStream = FileSystemOutputStream(store, path, 30, 10, 10,snackFSConfiguration.atMost)
+    val outputStream = FileSystemOutputStream(store, path, 30, 10, 10, snackFSConfiguration.atMost)
 
     outputStream.write(data.array(), 0, data.array().length)
     outputStream.close()
@@ -71,7 +71,7 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
     val path = new Path(pathURI)
     val maxBlockSize = 500
     val maxSubBlockSize = 50
-    val outputStream = FileSystemOutputStream(store, path, maxBlockSize, maxSubBlockSize, data.length,snackFSConfiguration.atMost)
+    val outputStream = FileSystemOutputStream(store, path, maxBlockSize, maxSubBlockSize, data.length, snackFSConfiguration.atMost)
     outputStream.write(data, 0, data.length)
     outputStream.close()
 
@@ -104,7 +104,7 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
     val path = new Path(pathURI)
     val maxBlockSize: Int = 30000
     val maxSubBlockSize = 3000
-    val outputStream = FileSystemOutputStream(store, path, maxBlockSize, maxSubBlockSize, data.length,snackFSConfiguration.atMost)
+    val outputStream = FileSystemOutputStream(store, path, maxBlockSize, maxSubBlockSize, data.length, snackFSConfiguration.atMost)
     outputStream.write(data, 0, data.length)
     outputStream.close()
 

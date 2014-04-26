@@ -28,12 +28,16 @@ import scala.concurrent.duration._
 import com.tuplejump.snackfs.fs.model._
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
 import com.twitter.logging.Logger
+import scala.concurrent.{Await, Future}
+import com.tuplejump.snackfs.cassandra.model.GenericOpSuccess
+import org.apache.cassandra.thrift.{TimedOutException, UnavailableException}
+import scala.concurrent.ExecutionContext.Implicits.global
+import org.apache.thrift.TBaseHelper
+
 
 case class FileSystemOutputStream(store: FileSystemStore, path: Path,
                                   blockSize: Long, subBlockSize: Long,
                                   bufferSize: Long, atMost: FiniteDuration) extends OutputStream {
-
-  //QUESTION: What is buffersize used for?
 
   private lazy val log = Logger.get(getClass)
 
@@ -46,8 +50,8 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
   private var position = 0
   private var outBuffer = ByteBuffer.allocate(subBlockSize.toInt)
 
-  private var subBlocksMeta = List[SubBlockMeta]()
-  private var blocksMeta = List[BlockMeta]()
+  private var subBlocksMeta = Vector[SubBlockMeta]()
+  private var blocksMeta = Vector[BlockMeta]()
 
   private var isClosing = false
 
@@ -76,8 +80,7 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
     var offsetTemp = offset
     while (lengthTemp > 0) {
       val lengthToWrite = math.min(subBlockSize - position, lengthTemp).asInstanceOf[Int]
-
-      val slice: Array[Byte] = buf.slice(offsetTemp, offsetTemp + lengthToWrite)
+      val slice: Array[Byte] = if (offsetTemp != 0 || lengthToWrite != buf.length) buf.slice(offsetTemp, offsetTemp + lengthToWrite) else buf
       outBuffer = outBuffer.put(slice)
       lengthTemp -= lengthToWrite
       offsetTemp += lengthToWrite
@@ -88,20 +91,51 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
     }
   }
 
+  private var subblocksWriteQueue = Vector.empty[Future[GenericOpSuccess]]
+
+  private def storeSubblock(_blockId: UUID, _subBlockMeta: SubBlockMeta, _data: ByteBuffer) {
+    val f = Future {
+      store.storeSubBlock(_blockId, _subBlockMeta, _data).get //TODO handle errors
+    }
+
+    subblocksWriteQueue :+= f
+
+    def recover() {
+      Thread.sleep(atMost.toMillis)
+      storeSubblock(_blockId, _subBlockMeta, _data)
+    }
+
+    f recover {
+      case ue: UnavailableException =>
+        log.ifDebug(ue, "Will try ot recover")
+        recover()
+      case toe: TimedOutException =>
+        log.ifDebug(toe, "Will try ot recover")
+        recover()
+      case ex: Throwable =>
+        throw ex
+    }
+  }
+
+
   private def endSubBlock() = {
     if (position != 0) {
       val subBlockMeta = SubBlockMeta(UUIDGen.getTimeUUID, subBlockOffset, position)
       log.debug("storing subBlock")
       outBuffer.limit(outBuffer.position).position(0)
-      store.storeSubBlock(blockId, subBlockMeta, outBuffer).get //TODO handle errors
+      val bb = ByteBuffer.allocate(outBuffer.limit)
+      bb.put(outBuffer)
+      //bb.put(outBuffer.array(), 0, outBuffer.limit)
+
+      bb.rewind()
+
+      storeSubblock(blockId, subBlockMeta, bb)
 
       subBlockOffset += position
       bytesWrittenToBlock += position
       subBlocksMeta = subBlocksMeta :+ subBlockMeta
       position = 0
       outBuffer.clear()
-      outBuffer.rewind()
-      //outBuffer = Array.empty[Byte]
     }
   }
 
@@ -109,19 +143,21 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
     val subBlockLengths = subBlocksMeta.map(_.length).sum
     val block = BlockMeta(blockId, blockOffset, subBlockLengths, subBlocksMeta)
     blocksMeta = blocksMeta :+ block
+    blockOffset += subBlockLengths.asInstanceOf[Int]
+    subBlocksMeta = Vector.empty[SubBlockMeta]
+    subBlockOffset = 0
+    blockId = UUIDGen.getTimeUUID
+    bytesWrittenToBlock = 0
+  }
+
+
+  private def storeINode() {
     val user = System.getProperty("user.name")
     val permissions = FsPermission.getDefault
     val timestamp = System.currentTimeMillis()
     val iNode = INode(user, user, permissions, FileType.FILE, blocksMeta, timestamp)
-
     log.debug("storing/updating block details for INode at %s", path)
     store.storeINode(path, iNode).get //TODO handle errors
-
-    blockOffset += subBlockLengths.asInstanceOf[Int]
-    subBlocksMeta = List()
-    subBlockOffset = 0
-    blockId = UUIDGen.getTimeUUID
-    bytesWrittenToBlock = 0
   }
 
   override def flush() = {
@@ -142,6 +178,8 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
       log.debug("closing stream")
       isClosing = true
       flush()
+      storeINode()
+      Await.result(Future.sequence(subblocksWriteQueue), atMost * 5)
       super.close()
       isClosed = true
     }
