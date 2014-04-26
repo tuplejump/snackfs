@@ -27,15 +27,46 @@ import org.apache.thrift.transport.{TFramedTransport, TSocket}
 import com.twitter.logging.Logger
 import scala.util.{Failure, Success, Try}
 
-class ClientPoolFactory(host: String, port: Int, keyspace: String) extends BasePoolableObjectFactory[ThriftClientAndSocket] {
+import scala.collection.JavaConversions._
+
+class ClientPoolFactory(host: String, port: Int, keyspace: String, multiNode: Boolean = false) extends BasePoolableObjectFactory[ThriftClientAndSocket] {
 
   private lazy val log = Logger.get(getClass)
 
   val protocolFactory = new TBinaryProtocol.Factory()
   val clientFactory = new Client.Factory()
 
-  def makeObject(): ThriftClientAndSocket = {
+  val nodes: Vector[String] = if (multiNode) {
     val socket = new TSocket(host, port)
+    val client = getClient(socket).client
+    Try {
+      client.describe_ring(keyspace).flatMap(_.getEndpoints).distinct.toVector
+    } match {
+      case Success(nodes: Vector[String]) => nodes
+      case Failure(ex: Throwable) => Vector(host)
+    }
+  } else {
+    Vector.empty[String]
+  }
+
+  val ringSize = nodes.length
+
+  var lastNodeIdx = -1
+
+
+  def makeObject(): ThriftClientAndSocket = {
+    val socket =
+      if (multiNode) {
+        lastNodeIdx = if (lastNodeIdx < ringSize) lastNodeIdx + 1 else 0
+        new TSocket(nodes(lastNodeIdx), port)
+      } else {
+        new TSocket(host, port)
+      }
+
+    getClient(socket)
+  }
+
+  private def getClient(socket: TSocket) = {
     val transport = new TFramedTransport(socket)
     transport.open()
     val client = clientFactory.getClient(protocolFactory.getProtocol(transport))
@@ -44,12 +75,13 @@ class ClientPoolFactory(host: String, port: Int, keyspace: String) extends BaseP
     x match {
       case Success(s) =>
         log.debug("set keyspace %s for client", keyspace)
-        ThriftClientAndSocket(client, socket,transport)
+        ThriftClientAndSocket(client, socket, transport)
 
       case Failure(e) =>
         log.error(e, "failed to set keyspace %s for client ", keyspace)
         throw e
     }
+
   }
 
   override def destroyObject(obj: ThriftClientAndSocket) {

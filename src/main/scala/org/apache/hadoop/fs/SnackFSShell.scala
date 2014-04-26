@@ -30,6 +30,8 @@ import org.apache.hadoop.io.IOUtils
 
 class SnackFSShell extends FsShell {
 
+  System.setProperty("com.tuplejump.snackfs.usemultinode", "true")
+
   val dateForm: SimpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm")
 
   private def printUsage(cmd: String) = {

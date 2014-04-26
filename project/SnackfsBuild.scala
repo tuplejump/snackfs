@@ -83,9 +83,9 @@ object SnackfsBuild extends Build {
 
     version := VERSION,
 
-    scalaVersion := "2.9.3",
+    scalaVersion := "2.10.3",
 
-    crossScalaVersions := Seq("2.9.3", "2.10.3"),
+    crossScalaVersions := Seq("2.10.3"),
 
     parallelExecution in Test := false,
 

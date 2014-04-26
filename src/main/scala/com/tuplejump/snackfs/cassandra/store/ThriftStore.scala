@@ -114,14 +114,15 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
   def init {
     log.debug("initializing thrift store with configuration %s", configuration.toString)
-    clientPool = new StackObjectPool[ThriftClientAndSocket](
-      new ClientPoolFactory(configuration.CassandraHost, configuration.CassandraPort,
-        configuration.keySpace)) {
 
+    val useMultinode = System.getProperty("com.tuplejump.snackfs.usemultinode") == true
+    log.debug("Using multinode: %s", useMultinode)
+
+    clientPool = new StackObjectPool[ThriftClientAndSocket](
+      new ClientPoolFactory(configuration.CassandraHost, configuration.CassandraPort, configuration.keySpace, useMultinode)) {
       override def close() {
         super.close()
       }
-
     }
   }
 
