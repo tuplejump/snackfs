@@ -22,7 +22,6 @@ import org.scalatest.{BeforeAndAfterAll, FlatSpec}
 import java.net.URI
 import org.apache.hadoop.fs.Path
 import org.apache.cassandra.utils.ByteBufferUtil
-import scala.concurrent.Await
 import java.nio.file.{FileSystems, Files}
 import org.apache.commons.io.IOUtils
 import org.scalatest.matchers.MustMatchers
@@ -40,8 +39,7 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
   store.init
 
   val replicationStrategy = classOf[SimpleStrategy].getCanonicalName
-  Await.result(store.createKeyspace, snackFSConfiguration.atMost)
-  //Await.result(store.init, snackFSConfiguration.atMost)
+  store.createKeyspace.get
 
   it should "fetch data which is equal to actual data" in {
     val pathURI = URI.create("outputStream.txt")
@@ -49,12 +47,12 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
     val dataString: String = "Test Subblock insertion"
     val data = ByteBufferUtil.bytes(dataString)
 
-    val outputStream = FileSystemOutputStream(store, path, 30, 10, 10,snackFSConfiguration.atMost)
+    val outputStream = FileSystemOutputStream(store, path, 30, 10, snackFSConfiguration.atMost)
 
     outputStream.write(data.array(), 0, data.array().length)
     outputStream.close()
 
-    val inode = Await.result(store.retrieveINode(path), snackFSConfiguration.atMost)
+    val inode = store.retrieveINode(path).get
     assert(inode.blocks.length === 1)
 
     val blockData = store.retrieveBlock(inode.blocks(0))
@@ -73,11 +71,11 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
     val path = new Path(pathURI)
     val maxBlockSize = 500
     val maxSubBlockSize = 50
-    val outputStream = FileSystemOutputStream(store, path, maxBlockSize, maxSubBlockSize, data.length,snackFSConfiguration.atMost)
+    val outputStream = FileSystemOutputStream(store, path, maxBlockSize, maxSubBlockSize,snackFSConfiguration.atMost)
     outputStream.write(data, 0, data.length)
     outputStream.close()
 
-    val inode = Await.result(store.retrieveINode(path), snackFSConfiguration.atMost)
+    val inode = store.retrieveINode(path).get
     ////println("blocks=" + inode.blocks.length)
     val minSize: Int = data.length / maxBlockSize
     ////println(minSize)
@@ -106,11 +104,11 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
     val path = new Path(pathURI)
     val maxBlockSize: Int = 30000
     val maxSubBlockSize = 3000
-    val outputStream = FileSystemOutputStream(store, path, maxBlockSize, maxSubBlockSize, data.length,snackFSConfiguration.atMost)
+    val outputStream = FileSystemOutputStream(store, path, maxBlockSize, maxSubBlockSize, snackFSConfiguration.atMost)
     outputStream.write(data, 0, data.length)
     outputStream.close()
 
-    val inode = Await.result(store.retrieveINode(path), snackFSConfiguration.atMost)
+    val inode = store.retrieveINode(path).get
     //println("blocks=" + inode.blocks.length)
     val minSize: Int = data.length / maxBlockSize
     //println(minSize)
@@ -202,7 +200,7 @@ class FileSystemStreamSpec extends FlatSpec with BeforeAndAfterAll with MustMatc
   }
 
   override def afterAll() = {
-    Await.ready(store.dropKeyspace, snackFSConfiguration.atMost)
+    store.dropKeyspace.get
     store.disconnect()
   }
 

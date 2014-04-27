@@ -32,13 +32,11 @@ import com.tuplejump.snackfs.api.partial.Command
 object OpenFileCommand extends Command {
   private lazy val log = Logger.get(getClass)
 
-  //TODO check how bufferSize is applied
   def apply(store: FileSystemStore,
             filePath: Path,
-            bufferSize: Int,
             atMost: FiniteDuration): FSDataInputStream = {
 
-    val mayBeFile = Try(Await.result(store.retrieveINode(filePath), atMost))
+    val mayBeFile = store.retrieveINode(filePath)
 
     mayBeFile match {
       case Success(file: INode) =>
@@ -53,7 +51,7 @@ object OpenFileCommand extends Command {
           fileStream
         }
 
-      case Failure(e: Exception) =>
+      case Failure(e: Throwable) =>
         val ex = new IOException("No such file.")
         log.error(ex, "Failed to open file %s as it doesnt exist", filePath)
         throw ex

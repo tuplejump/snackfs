@@ -18,7 +18,6 @@
  */
 package com.tuplejump.snackfs.cassandra.store
 
-import scala.concurrent.Await
 
 import org.scalatest.{BeforeAndAfterAll, FlatSpec}
 import org.apache.hadoop.fs.permission.FsPermission
@@ -54,33 +53,32 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
   val data = ByteBufferUtil.bytes("Test to store subBLock")
 
   it should "create a keyspace with name STORE" in {
-    val ks = store.createKeyspace
-    val status = Await.result(ks, snackFSConfiguration.atMost)
-    assert(status.isInstanceOf[Keyspace])
+    val ks = store.createKeyspace.get
+    assert(ks.isInstanceOf[Keyspace])
   }
 
   /* it should "set keyspace to STORE" in {
-    val result = Await.result(store.init, snackFSConfiguration.atMost)
+    val result = store.init.get
     assert(result.isInstanceOf[Unit])
   }  */
 
   it should "create a INode" in {
     val response = store.storeINode(path, iNode)
-    val responseValue: GenericOpSuccess = Await.result(response, snackFSConfiguration.atMost)
+    val responseValue: GenericOpSuccess = response.get
     assert(responseValue === GenericOpSuccess())
   }
 
 
   it should "fetch created INode" in {
     val response = store.retrieveINode(path)
-    val result: INode = Await.result(response, snackFSConfiguration.atMost)
+    val result: INode = response.get
     assert(result === iNode)
   }
 
   it should "fetch created subBlock" in {
-    Await.ready(store.storeSubBlock(block1.id, subBlockMeta1, data), snackFSConfiguration.atMost)
+    store.storeSubBlock(block1.id, subBlockMeta1, data).get
     val storeResponse = store.retrieveSubBlock(block1.id, subBlockMeta1.id, 0)
-    val response = Await.result(storeResponse, snackFSConfiguration.atMost)
+    val response = storeResponse.get
     val responseString = new String(IOUtils.toByteArray(response))
     responseString must be(new String(data.array()))
   }
@@ -92,22 +90,22 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
     val subBlock = SubBlockMeta(UUID.randomUUID, 0, 128)
     val subBlockSecond = SubBlockMeta(UUID.randomUUID, 0, 128)
 
-    Await.result(store.storeSubBlock(blockId, subBlock, ByteBufferUtil.bytes("Random test data")), snackFSConfiguration.atMost)
-    Await.result(store.storeSubBlock(blockIdSecond, subBlockSecond, ByteBufferUtil.bytes("Random test data")), snackFSConfiguration.atMost)
+    store.storeSubBlock(blockId, subBlock, ByteBufferUtil.bytes("Random test data")).get
+    store.storeSubBlock(blockIdSecond, subBlockSecond, ByteBufferUtil.bytes("Random test data")).get
 
     val blockMeta = BlockMeta(blockId, 0, 0, List(subBlock))
     val blockMetaSecond = BlockMeta(blockId, 0, 0, List(subBlock))
 
-    val subBlockData = Await.result(store.retrieveSubBlock(blockMeta.id, subBlock.id, 0), snackFSConfiguration.atMost)
+    val subBlockData = store.retrieveSubBlock(blockMeta.id, subBlock.id, 0).get
     val dataString = new String(IOUtils.toByteArray(subBlockData))
     dataString must be("Random test data")
 
     val iNode = INode("user", "group", FsPermission.getDefault, FileType.FILE, List(blockMeta, blockMetaSecond), timestamp)
 
-    Await.ready(store.deleteBlocks(iNode), snackFSConfiguration.atMost)
+    store.deleteBlocks(iNode).get
 
     val exception = intercept[NotFoundException] {
-      Await.result(store.retrieveSubBlock(blockMeta.id, subBlock.id, 0), snackFSConfiguration.atMost)
+      store.retrieveSubBlock(blockMeta.id, subBlock.id, 0).get
     }
     assert(exception.getMessage === null)
   }
@@ -115,16 +113,15 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
   it should "fetch all sub-paths" in {
     val path1 = new Path("/tmp")
     val iNode1 = INode("user", "group", FsPermission.getDefault, FileType.DIRECTORY, null, timestamp)
-    Await.ready(store.storeINode(path1, iNode1), snackFSConfiguration.atMost)
+    store.storeINode(path1, iNode1).get
 
     val path2 = new Path("/tmp/user")
-    Await.ready(store.storeINode(path2, iNode1), snackFSConfiguration.atMost)
+    store.storeINode(path2, iNode1).get
 
     val path3 = new Path("/tmp/user/file")
-    Await.ready(store.storeINode(path3, iNode), snackFSConfiguration.atMost)
+    store.storeINode(path3, iNode).get
 
-    val result = Await.result(store.fetchSubPaths(path1, isDeepFetch = true), snackFSConfiguration.atMost)
-    //println(result.toString())
+    val result = store.fetchSubPaths(path1, isDeepFetch = true).get
 
     result.size must be(2)
   }
@@ -132,16 +129,15 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
   it should "fetch sub-paths" in {
     val path1 = new Path("/tmp")
     val iNode1 = INode("user", "group", FsPermission.getDefault, FileType.DIRECTORY, null, timestamp)
-    Await.ready(store.storeINode(path1, iNode1), snackFSConfiguration.atMost)
+    store.storeINode(path1, iNode1).get
 
     val path2 = new Path("/tmp/user")
-    Await.ready(store.storeINode(path2, iNode1), snackFSConfiguration.atMost)
+    store.storeINode(path2, iNode1).get
 
     val path3 = new Path("/tmp/user/file")
-    Await.ready(store.storeINode(path3, iNode), snackFSConfiguration.atMost)
+    store.storeINode(path3, iNode).get
 
-    val result = Await.result(store.fetchSubPaths(path1, isDeepFetch = false), snackFSConfiguration.atMost)
-    //println(result.toString())
+    val result = store.fetchSubPaths(path1, isDeepFetch = false).get
 
     result.size must be(1)
   }
@@ -149,9 +145,9 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
   it should "get block locations" in {
     val path1: Path = new Path("/tmp/user/file")
 
-    val inode = Await.result(store.retrieveINode(path1), snackFSConfiguration.atMost)
+    val inode = store.retrieveINode(path1).get
 
-    val map = Await.result(store.getBlockLocations(path1), snackFSConfiguration.atMost)
+    val map = store.getBlockLocations(path1).get
 
     map.size must be(inode.blocks.size)
 
@@ -160,54 +156,46 @@ class ThriftStoreSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers 
   /* createlock related -- locking a file so that another process cannot write to it*/
   it should "get lock when attempting for a file for the first time" in {
     val processId = UUID.randomUUID()
-    val lockFuture = store.acquireFileLock(new Path("/testLock1"), processId)
-    val result = Await.result(lockFuture, snackFSConfiguration.atMost)
+    val result = store.acquireFileLock(new Path("/testLock1"), processId)
     result must be(true)
   }
 
   it should "not get lock when attempting for a file from another process if lock is not released" in {
     val processId = UUID.randomUUID()
 
-    val lockFuture = store.acquireFileLock(new Path("/testLock2"), processId)
-    val result = Await.result(lockFuture, snackFSConfiguration.atMost)
+    val result = store.acquireFileLock(new Path("/testLock2"), processId)
     result must be(true)
 
     val processId2 = UUID.randomUUID()
-    val lockFuture2 = store.acquireFileLock(new Path("/testLock2"), processId2)
-    val result2 = Await.result(lockFuture2, snackFSConfiguration.atMost)
+    val result2 = store.acquireFileLock(new Path("/testLock2"), processId2)
     result2 must be(false)
   }
 
   it should "release lock on which was acquired" in {
     val processId = UUID.randomUUID()
-    val lockFuture = store.acquireFileLock(new Path("/testLock3"), processId)
-    val lockResult = Await.result(lockFuture, snackFSConfiguration.atMost)
+    val lockResult = store.acquireFileLock(new Path("/testLock3"), processId)
     lockResult must be(true)
 
-    val releaseFuture = store.releaseFileLock(new Path("/testLock3"))
-    val releaseResult = Await.result(releaseFuture, snackFSConfiguration.atMost)
+    val releaseResult = store.releaseFileLock(new Path("/testLock3"))
     releaseResult must be(true)
   }
 
   it should "get lock after a process has acquired and released it" in {
     val processId = UUID.randomUUID()
 
-    val lockFuture = store.acquireFileLock(new Path("/testLock4"), processId )
-    val lockResult = Await.result(lockFuture, snackFSConfiguration.atMost)
+    val lockResult = store.acquireFileLock(new Path("/testLock4"), processId )
     lockResult must be(true)
 
-    val releaseFuture = store.releaseFileLock(new Path("/testLock4"))
-    val releaseResult = Await.result(releaseFuture, snackFSConfiguration.atMost)
+    val releaseResult = store.releaseFileLock(new Path("/testLock4"))
     releaseResult must be(true)
 
     val processId2 = UUID.randomUUID()
-    val lockFuture2 = store.acquireFileLock(new Path("/testLock4"), processId2)
-    val lockResult2 = Await.result(lockFuture2, snackFSConfiguration.atMost)
+    val lockResult2 = store.acquireFileLock(new Path("/testLock4"), processId2)
     lockResult2 must be(true)
   }
 
   override def afterAll() = {
-    Await.ready(store.dropKeyspace, snackFSConfiguration.atMost)
+    store.dropKeyspace.get
     store.disconnect()
   }
 

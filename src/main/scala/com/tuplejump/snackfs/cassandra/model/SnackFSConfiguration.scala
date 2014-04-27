@@ -27,7 +27,7 @@ import scala.concurrent.duration._
 case class SnackFSConfiguration(CassandraHost: String, CassandraPort: Int,
                                 readConsistencyLevel: ConsistencyLevel, writeConsistencyLevel: ConsistencyLevel,
                                 keySpace: String, blockSize: Long, subBlockSize: Long, atMost: FiniteDuration,
-                                replicationFactor: Int, replicationStrategy: String) {
+                                replicationFactor: Int, replicationStrategy: String, maxParallel: Int) {
 }
 
 object SnackFSConfiguration {
@@ -38,9 +38,10 @@ object SnackFSConfiguration {
   private val HOST = "127.0.0.1"
   private val PORT: Int = 9160
   private val AT_MOST: Long = 10 * 1000
-  private val SUB_BLOCK_SIZE: Long =  8 * 1024 * 1024 //8 MB
-  private val BLOCK_SIZE: Long = 128 * 1024 * 1024 //128MB
-  private val REPLICATION_FACTOR: Int = 3
+  private val SUB_BLOCK_SIZE: Long = 8 * 1024 * 1024  //8 MB
+  private val BLOCK_SIZE: Long = 128 * 1024 * 1024  //128MB
+  private val REPLICATION_FACTOR: Int = 1
+  private val MAX_PARALLEL: Int = 4
 
   def get(userConf: Configuration): SnackFSConfiguration = {
     val cassandraHost = userConf.get("snackfs.cassandra.host")
@@ -68,8 +69,10 @@ object SnackFSConfiguration {
     val maxWaitDuration = userConf.getLong("snackfs.waitInterval", AT_MOST)
     val waitDuration = FiniteDuration(maxWaitDuration, MILLISECONDS)
 
+    val maxParallel = userConf.getInt("snackfs.fastWrite.parallel", MAX_PARALLEL)
+
     SnackFSConfiguration(host, port, readLevel, writeLevel, keyspace, blockSize,
-      subBlockSize, waitDuration, replicationFactor, replicationStrategy)
+      subBlockSize, waitDuration, replicationFactor, replicationStrategy, maxParallel)
   }
 
   private def getConsistencyLevel(level: String): ConsistencyLevel = {

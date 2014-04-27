@@ -19,8 +19,7 @@
 package com.tuplejump.snackfs.api.model
 
 import scala.concurrent.duration.FiniteDuration
-import scala.util.{Failure, Success, Try}
-import scala.concurrent.Await
+import scala.util.{Failure, Success}
 import com.tuplejump.snackfs.fs.model.INode
 import java.io.FileNotFoundException
 import com.twitter.logging.Logger
@@ -36,7 +35,7 @@ object FileStatusCommand extends Command {
             atMost: FiniteDuration): FileStatus = {
 
     log.debug("getting status for %s", filePath)
-    val maybeFile = Try(Await.result(store.retrieveINode(filePath), atMost))
+    val maybeFile = store.retrieveINode(filePath)
 
     maybeFile match {
       case Success(file: INode) => SnackFileStatus(file, filePath)

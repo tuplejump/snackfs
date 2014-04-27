@@ -34,20 +34,20 @@ object RenameCommand extends Command {
 
   private def renameINode(store: FileSystemStore, originalPath: Path, updatedPath: Path, iNode: INode, atMost: FiniteDuration) = {
     log.debug("deleting existing iNode %s", originalPath)
-    Await.ready(store.deleteINode(originalPath), atMost)
+    store.deleteINode(originalPath)
     log.debug("storing iNode %s", updatedPath)
-    Await.ready(store.storeINode(updatedPath, iNode), atMost)
+    store.storeINode(updatedPath, iNode)
   }
 
   private def renameDir(store: FileSystemStore, src: Path, dst: Path, atMost: FiniteDuration) = {
     MakeDirectoryCommand(store, dst, FsPermission.getDefault, atMost)
-    val contents = Await.result(store.fetchSubPaths(src, isDeepFetch = true), atMost)
+    val contents = store.fetchSubPaths(src, isDeepFetch = true).get
     if (contents.size > 0) {
       log.debug("renaming all child nodes %s", contents)
       val srcPathString = src.toUri.getPath
       val dstPathString = dst.toUri.getPath
       contents.map(path => {
-        val actualINode = Await.result(store.retrieveINode(path), atMost)
+        val actualINode = store.retrieveINode(path).get
         val oldPathString = path.toUri.getPath
         val changedPathString = oldPathString.replaceFirst(srcPathString, dstPathString)
         val changedPath = new Path(changedPathString)
@@ -67,14 +67,14 @@ object RenameCommand extends Command {
    */
   def apply(store: FileSystemStore, srcPath: Path, dstPath: Path, atMost: FiniteDuration): Boolean = {
     if (srcPath != dstPath) {
-      val mayBeSrc = Try(Await.result(store.retrieveINode(srcPath), atMost))
+      val mayBeSrc = store.retrieveINode(srcPath)
       mayBeSrc match {
         case Failure(e1) =>
           val ex = new IOException("No such file or directory.%s".format(srcPath))
           log.error(ex, "Failed to rename %s as it doesnt exist", srcPath)
           throw ex
         case Success(src: INode) =>
-          val mayBeDst = Try(Await.result(store.retrieveINode(dstPath), atMost))
+          val mayBeDst = store.retrieveINode(dstPath)
           mayBeDst match {
             case Success(dst: INode) =>
                 val ex = new IOException("Destination already exists")
@@ -82,7 +82,7 @@ object RenameCommand extends Command {
                 throw ex
             case Failure(e) =>
               log.debug("%s does not exist. checking if %s exists", dstPath, dstPath.getParent)
-              val maybeDstParent = Try(Await.result(store.retrieveINode(dstPath.getParent), atMost))
+              val maybeDstParent = store.retrieveINode(dstPath.getParent)
               maybeDstParent match {
                 case Failure(e2) =>
                   val ex = new IOException("Destination %s directory does not exist.".format(dstPath.getParent))

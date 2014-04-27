@@ -18,26 +18,22 @@
  */
 package com.tuplejump.snackfs.cassandra.store
 
-import org.apache.cassandra.thrift.Cassandra.AsyncClient
-import org.apache.cassandra.thrift.Cassandra.AsyncClient._
+import org.apache.cassandra.thrift.Cassandra.Client
 
 import org.apache.cassandra.utils.{UUIDGen, FBUtilities, ByteBufferUtil}
-import scala.concurrent._
-import scala.concurrent.ExecutionContext.Implicits.global
 import org.apache.cassandra.thrift._
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import java.nio.ByteBuffer
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 import org.apache.hadoop.fs.Path
 import java.math.BigInteger
 import java.util.UUID
 import java.io.InputStream
-import com.tuplejump.snackfs.util.{LogConfiguration, AsyncUtil}
+import com.tuplejump.snackfs.util.LogConfiguration
 import org.apache.cassandra.dht.Murmur3Partitioner
-import org.apache.thrift.async.TAsyncClientManager
 import org.apache.thrift.protocol.TBinaryProtocol
-import org.apache.thrift.transport.TNonblockingSocket
+import org.apache.thrift.transport.{TFramedTransport, TSocket}
 import org.apache.commons.pool.ObjectPool
 import org.apache.commons.pool.impl.StackObjectPool
 
@@ -73,93 +69,67 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
   private var clientPool: ObjectPool[ThriftClientAndSocket] = _
 
-  private def executeWithClient[T](f: AsyncClient => Future[T])(implicit tm: ClassManifest[T]): Future[T] = {
+  private def executeWithClient[T](fn: Client => T)(implicit tm: ClassManifest[T]): T = {
     log.debug("Fetching client from pool")
     val thriftClientAndSocket = clientPool.borrowObject()
-    val ret = f(thriftClientAndSocket.client)
-
-    ret.onComplete {
-      res =>
-        clientPool.returnObject(thriftClientAndSocket)
-    }
+    val ret = fn(thriftClientAndSocket.client)
+    clientPool.returnObject(thriftClientAndSocket)
     ret
   }
 
-  def createKeyspace: Future[Keyspace] = {
+  /**
+   * Creates the keyspace required for SnackFS.
+   * It does not use executeWithClient since the keyspace is not already there
+   * @return
+   */
+  def createKeyspace: Try[Keyspace] = {
 
-    val clientManager = new TAsyncClientManager()
     val protocolFactory = new TBinaryProtocol.Factory()
-    val clientFactory = new AsyncClient.Factory(clientManager, protocolFactory)
+    val clientFactory = new Client.Factory()
 
-    val transport = new TNonblockingSocket(configuration.CassandraHost, configuration.CassandraPort)
-    val client = clientFactory.getAsyncClient(transport)
+    val socket = new TSocket(configuration.CassandraHost, configuration.CassandraPort)
+    val transport = new TFramedTransport(socket)
+    transport.open()
+    val client = clientFactory.getClient(protocolFactory.getProtocol(transport))
 
     val ksDef = buildSchema
-    val prom = promise[Keyspace]()
-    val ksDefFuture = AsyncUtil.executeAsync[describe_keyspace_call](client.describe_keyspace(ksDef.getName, _))
+    val mayBeKsDef = Try(client.describe_keyspace(ksDef.getName))
 
-    ksDefFuture onSuccess {
-      case p =>
+    val ret: Try[Keyspace] = mayBeKsDef map {
+      kd =>
+        log.debug("Using existing keyspace %s", ksDef.getName)
+        new Keyspace(ksDef.getName)
+    } recover {
+      case ex: Throwable =>
+        log.debug("Creating new keyspace %s", ksDef.getName)
+        val r = client.system_add_keyspace(ksDef)
 
-        val mayBeKsDef: Try[KsDef] = Try(p.getResult)
-
-        if (mayBeKsDef.isSuccess) {
-          log.debug("Using existing keyspace %s", ksDef.getName)
-          prom success new Keyspace(ksDef.getName)
-
-        } else {
-          log.debug("Creating new keyspace %s", ksDef.getName)
-          val response = AsyncUtil.executeAsync[system_add_keyspace_call](
-            client.system_add_keyspace(ksDef, _))
-
-          response.onSuccess {
-            case r =>
-              log.debug("Created keyspace %s", ksDef.getName)
-              prom success new Keyspace(r.getResult)
-
-              response.onFailure {
-                case f =>
-                  log.error(f, "Failed to create keyspace %s", f.getMessage)
-                  prom failure f
-              }
-          }
-        }
+        log.debug("Created keyspace %s", ksDef.getName)
+        new Keyspace(r)
     }
-    prom.future
+    transport.close()
+    socket.close()
+    ret
   }
 
   def init {
     log.debug("initializing thrift store with configuration %s", configuration.toString)
-    clientPool = new StackObjectPool[ThriftClientAndSocket](
-      new ClientPoolFactory(configuration.CassandraHost, configuration.CassandraPort,
-        configuration.keySpace)) {
 
+    val useMultinode = System.getProperty("com.tuplejump.snackfs.usemultinode") == true
+    log.debug("Using multinode: %s", useMultinode)
+
+    clientPool = new StackObjectPool[ThriftClientAndSocket](
+      new ClientPoolFactory(configuration.CassandraHost, configuration.CassandraPort, configuration.keySpace, useMultinode)) {
       override def close() {
         super.close()
-        getFactory.asInstanceOf[ClientPoolFactory].closePool()
       }
-
     }
   }
 
-  def dropKeyspace: Future[Unit] = executeWithClient({
+  def dropKeyspace: Try[String] = executeWithClient({
     client =>
-      val prom = promise[Unit]()
-      val dropFuture = AsyncUtil.executeAsync[system_drop_keyspace_call](client.system_drop_keyspace(configuration.keySpace, _))
-
-      dropFuture onSuccess {
-        case p =>
-          log.debug("deleted keyspace %s", configuration.keySpace)
-          prom success p.getResult
-      }
-
-      dropFuture onFailure {
-        case f =>
-          log.error(f, "failed to delete keyspace %s", configuration.keySpace)
-          prom failure f
-      }
-
-      prom.future
+      val mayBeDropped = Try(client.system_drop_keyspace(configuration.keySpace))
+      mayBeDropped
   })
 
   def disconnect() = {
@@ -278,78 +248,41 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
     mutationMap
   }
 
-  def storeINode(path: Path, iNode: INode): Future[GenericOpSuccess] = executeWithClient({
+  def storeINode(path: Path, iNode: INode): Try[GenericOpSuccess] = executeWithClient({
     client =>
       val data: ByteBuffer = iNode.serialize
       val timestamp = iNode.timestamp
       val mutationMap: Map[ByteBuffer, java.util.Map[String, java.util.List[Mutation]]] = generateMutationforINode(data, path, timestamp)
-      val iNodeFuture = AsyncUtil.executeAsync[batch_mutate_call](client.batch_mutate(mutationMap, configuration.writeConsistencyLevel, _))
-      val prom = promise[GenericOpSuccess]()
-      iNodeFuture.onSuccess {
-        case p =>
+      val mayBeINode = Try(client.batch_mutate(mutationMap, configuration.writeConsistencyLevel))
+      mayBeINode map {
+        u =>
           log.debug("stored INode %s", iNode.toString)
-          prom success GenericOpSuccess()
+          GenericOpSuccess()
       }
-
-      iNodeFuture.onFailure {
-        case f =>
-          log.error(f, "failed to store INode %s", iNode.toString)
-          prom failure f
-      }
-
-      prom.future
   })
 
-  private def performGet(client: AsyncClient, key: ByteBuffer, columnPath: ColumnPath): Future[ColumnOrSuperColumn] = {
-    val prom = promise[ColumnOrSuperColumn]()
-    val getFuture = AsyncUtil.executeAsync[get_call](client.get(key, columnPath, configuration.readConsistencyLevel, _))
-
-    getFuture.onSuccess {
-      case p =>
-        try {
-          val res = p.getResult
-          log.debug("fetch INode/subblock data")
-          prom success res
-        } catch {
-          case e: Exception =>
-            log.error(e, "failed to get INode/subblock data")
-            prom failure e
-        }
-    }
-
-    getFuture.onFailure {
-      case f =>
-        log.error(f, "failed to get INode/subblock data")
-        prom failure f
-    }
-
-    prom.future
+  private def performGet(client: Client, key: ByteBuffer, columnPath: ColumnPath): Try[ColumnOrSuperColumn] = {
+    val mayBeColumn = Try(client.get(key, columnPath, configuration.readConsistencyLevel))
+    mayBeColumn
   }
 
-  def retrieveINode(path: Path): Future[INode] = executeWithClient({
+  def retrieveINode(path: Path): Try[INode] = executeWithClient({
     client =>
       val pathKey: ByteBuffer = getPathKey(path)
       val inodeDataPath = new ColumnPath(INODE_COLUMN_FAMILY_NAME).setColumn(DATA_COLUMN)
 
-      val inodePromise = promise[INode]()
       log.debug("fetching Inode for path %s", path)
-      val pathInfo = performGet(client, pathKey, inodeDataPath)
+      val mayBePathInfo = performGet(client, pathKey, inodeDataPath)
 
-      pathInfo.onSuccess {
-        case p =>
+      val result: Try[INode] = mayBePathInfo map {
+        col: ColumnOrSuperColumn =>
           log.debug("retrieved Inode for path %s", path)
-          inodePromise success INode.deserialize(ByteBufferUtil.inputStream(p.column.value), p.column.getTimestamp)
+          INode.deserialize(ByteBufferUtil.inputStream(col.column.value), col.column.getTimestamp)
       }
-
-      pathInfo.onFailure {
-        case f =>
-          log.error(f, "failed to retrieve Inode for path %s", path)
-          inodePromise failure f
-      }
-      inodePromise.future
+      result
   })
 
-  def storeSubBlock(blockId: UUID, subBlockMeta: SubBlockMeta, data: ByteBuffer): Future[GenericOpSuccess] = executeWithClient({
+  def storeSubBlock(blockId: UUID, subBlockMeta: SubBlockMeta, data: ByteBuffer): Try[GenericOpSuccess] = executeWithClient({
     client =>
       val parentBlockId: ByteBuffer = ByteBufferUtil.bytes(blockId)
 
@@ -360,47 +293,29 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
         .setValue(data)
         .setTimestamp(System.currentTimeMillis)
 
-      val prom = promise[GenericOpSuccess]()
-      val subBlockFuture = AsyncUtil.executeAsync[insert_call](
-        client.insert(parentBlockId, sblockParent, column, configuration.writeConsistencyLevel, _))
+      val mayBeSubBlock = Try(client.insert(parentBlockId, sblockParent, column, configuration.writeConsistencyLevel))
 
-      subBlockFuture.onSuccess {
-        case p =>
+      mayBeSubBlock map {
+        u =>
           log.debug("stored subBlock %s for block with id %s", subBlockMeta.toString, blockId.toString)
-          prom success GenericOpSuccess()
+          GenericOpSuccess()
       }
-
-      subBlockFuture.onFailure {
-        case f =>
-          log.debug(f, " failed to store subBlock %s for block with id %s", subBlockMeta.toString, blockId.toString)
-          prom failure f
-      }
-      prom.future
   })
 
-  def retrieveSubBlock(blockId: UUID, subBlockId: UUID, byteRangeStart: Long): Future[InputStream] = executeWithClient({
+  def retrieveSubBlock(blockId: UUID, subBlockId: UUID, byteRangeStart: Long): Try[InputStream] = executeWithClient({
     client =>
       val blockIdBuffer: ByteBuffer = ByteBufferUtil.bytes(blockId)
       val subBlockIdBuffer = ByteBufferUtil.bytes(subBlockId)
       log.debug("fetching subBlock for path %s", subBlockId.toString)
 
-      val subBlockFuture = performGet(client, blockIdBuffer, new ColumnPath(BLOCK_COLUMN_FAMILY_NAME).setColumn(subBlockIdBuffer))
-      val prom = promise[InputStream]()
+      val mayBeSubBlock = performGet(client, blockIdBuffer, new ColumnPath(BLOCK_COLUMN_FAMILY_NAME).setColumn(subBlockIdBuffer))
 
-      subBlockFuture.onSuccess {
-        case p =>
-          val stream: InputStream = ByteBufferUtil.inputStream(p.column.value)
+      mayBeSubBlock.map {
+        col: ColumnOrSuperColumn =>
+          val stream: InputStream = ByteBufferUtil.inputStream(col.column.value)
           log.debug("retrieved subBlock with id %s and block id %s", subBlockId.toString, blockId.toString)
-          prom success stream
+          stream
       }
-
-      subBlockFuture.onFailure {
-        case f =>
-          log.debug("failed to retrieve subBlock with id %s and block id %s", subBlockId.toString, blockId.toString)
-          prom failure f
-      }
-
-      prom.future
   })
 
   def retrieveBlock(blockMeta: BlockMeta): InputStream = {
@@ -408,54 +323,34 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
     BlockInputStream(this, blockMeta, configuration.atMost)
   }
 
-  def deleteINode(path: Path): Future[GenericOpSuccess] = executeWithClient({
+  def deleteINode(path: Path): Try[GenericOpSuccess] = executeWithClient({
     client =>
       val pathKey = getPathKey(path)
       val iNodeColumnPath = new ColumnPath(INODE_COLUMN_FAMILY_NAME)
       val timestamp = System.currentTimeMillis
 
-      val result = promise[GenericOpSuccess]()
+      val mayBeDeleted = Try(client.remove(pathKey, iNodeColumnPath, timestamp, configuration.writeConsistencyLevel))
 
-      val deleteInodeFuture = AsyncUtil.executeAsync[remove_call](
-        client.remove(pathKey, iNodeColumnPath, timestamp, configuration.writeConsistencyLevel, _))
-
-      deleteInodeFuture.onSuccess {
-        case p =>
+      mayBeDeleted map {
+        u =>
           log.debug("deleted INode with path %s", path)
-          result success GenericOpSuccess()
+          GenericOpSuccess()
       }
 
-      deleteInodeFuture.onFailure {
-        case f =>
-          log.error(f, "failed to delete INode with path %s", path)
-          result failure f
-      }
-
-      result.future
   })
 
-  def deleteBlocks(iNode: INode): Future[GenericOpSuccess] = executeWithClient({
+  def deleteBlocks(iNode: INode): Try[GenericOpSuccess] = executeWithClient({
     client =>
       val mutationMap = generateINodeMutationMap(iNode)
 
-      val result = promise[GenericOpSuccess]()
+      val mayBeDeleted = Try(
+        client.batch_mutate(mutationMap, configuration.writeConsistencyLevel))
 
-      val deleteFuture = AsyncUtil.executeAsync[batch_mutate_call](
-        client.batch_mutate(mutationMap, configuration.writeConsistencyLevel, _))
-
-      deleteFuture.onSuccess {
-        case p =>
+      mayBeDeleted.map {
+        u =>
           log.debug("deleted blocks for INode %s", iNode.toString)
-          result success GenericOpSuccess()
+          GenericOpSuccess()
       }
-
-      deleteFuture.onFailure {
-        case f =>
-          log.error(f, "failed to delete blocks for INode %s", iNode.toString)
-          result failure f
-      }
-
-      result.future
   })
 
   private def generateINodeMutationMap(iNode: INode): Map[ByteBuffer, java.util.Map[String, java.util.List[Mutation]]] = {
@@ -470,7 +365,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
     }.toMap
   }
 
-  def fetchSubPaths(path: Path, isDeepFetch: Boolean): Future[Set[Path]] = {
+  def fetchSubPaths(path: Path, isDeepFetch: Boolean): Try[Set[Path]] = {
     val startPath = path.toUri.getPath
     val startPathBuffer = ByteBufferUtil.bytes(startPath)
 
@@ -501,7 +396,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
     fetchPaths(indexExpr)
   }
 
-  private def fetchPaths(indexExpr: List[IndexExpression]): Future[Set[Path]] = executeWithClient({
+  private def fetchPaths(indexExpr: List[IndexExpression]): Try[Set[Path]] = executeWithClient({
     client =>
       val pathPredicate = new SlicePredicate().setColumn_names(List(PATH_COLUMN))
       val iNodeParent = new ColumnParent(INODE_COLUMN_FAMILY_NAME)
@@ -510,28 +405,18 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
       keyRange.setStart_key(ByteBufferUtil.EMPTY_BYTE_BUFFER)
       keyRange.setEnd_key(ByteBufferUtil.EMPTY_BYTE_BUFFER)
 
-      val rowFuture = AsyncUtil.executeAsync[get_range_slices_call](
-        client.get_range_slices(iNodeParent, pathPredicate, keyRange, configuration.readConsistencyLevel, _))
+      val mayBeRow = Try(
+        client.get_range_slices(iNodeParent, pathPredicate, keyRange, configuration.readConsistencyLevel))
 
-      val result = promise[Set[Path]]()
-
-      rowFuture.onSuccess {
-        case p =>
-          val paths = p.getResult.flatMap(keySlice =>
+      mayBeRow map {
+        col =>
+          val paths = col.flatMap(keySlice =>
             keySlice.getColumns.map(columnOrSuperColumn =>
               new Path(ByteBufferUtil.string(columnOrSuperColumn.column.value)))
           ).toSet
           log.debug("fetched subpaths for %s", indexExpr.toString())
-          result success paths
+          paths
       }
-
-      rowFuture.onFailure {
-        case f =>
-          log.error(f, "failed to fetch subpaths for  %s", indexExpr.toString())
-          result failure f
-      }
-
-      result.future
   })
 
   private def indexExprForDeepFetch(startPath: String): List[IndexExpression] = {
@@ -543,31 +428,25 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
   }
 
 
-  def getBlockLocations(path: Path): Future[Map[BlockMeta, List[String]]] = executeWithClient({
+  def getBlockLocations(path: Path): Try[Map[BlockMeta, List[String]]] = executeWithClient({
     client =>
 
-      val result = promise[Map[BlockMeta, List[String]]]()
-      val inodeFuture = retrieveINode(path)
+      val mayBeINode = retrieveINode(path)
 
       var response = Map.empty[BlockMeta, List[String]]
-
-      inodeFuture.onSuccess {
-        case inode =>
+      mayBeINode flatMap {
+        iNode =>
           log.debug("found iNode for %s, getting block locations", path)
           //Get the ring description from the server
-          val ringFuture = AsyncUtil.executeAsync[describe_ring_call](
-            client.describe_ring(configuration.keySpace, _)
-          )
-
-
-          ringFuture.onSuccess {
-            case r =>
+          val mayBeRing = Try(client.describe_ring(configuration.keySpace))
+          mayBeRing map {
+            r =>
               log.debug("fetched ring details for keyspace %s", configuration.keySpace)
               val tf = partitioner.getTokenFactory
-              val ring = r.getResult.map(p => (p.getEndpoints, p.getStart_token.toLong, p.getEnd_token.toLong))
+              val ring = r.map(p => (p.getEndpoints, p.getStart_token.toLong, p.getEnd_token.toLong))
 
               //For each block in the file, get the owner node
-              inode.blocks.foreach(b => {
+              iNode.blocks.foreach(b => {
                 val token = tf.fromByteArray(ByteBufferUtil.bytes(b.id))
 
                 val xr = ring.filter {
@@ -588,23 +467,9 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
                 }
               })
               log.debug("found block locations for iNode %s", path)
-              result success response
-          }
-
-          ringFuture.onFailure {
-            case f =>
-              log.error(f, "failed to get ring details for keyspace %s", configuration.keySpace)
-              result failure f
+              response
           }
       }
-
-      inodeFuture.onFailure {
-        case e =>
-          log.error(e, "iNode for %s not found", path)
-          result failure e
-      }
-
-      result.future
   })
 
   /* Lock for writing a file
@@ -624,7 +489,7 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
    *
    */
 
-  private def addLockColumn(path: Path, processId: UUID, client: AsyncClient): Future[insert_call] = {
+  private def addLockColumn(path: Path, processId: UUID, client: Client): Try[GenericOpSuccess] = {
     val key = getPathKey(path)
     val columnParent = new ColumnParent(LOCK_COLUMN_FAMILY_NAME)
 
@@ -635,24 +500,22 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
       .setValue(ByteBufferUtil.bytes(processId))
       .setTimestamp(System.currentTimeMillis())
 
-    val addColumnFuture = AsyncUtil.executeAsync[insert_call](
-      client.insert(key, columnParent, column, ConsistencyLevel.QUORUM, _))
-
-    log.debug("adding column")
-    addColumnFuture
+    val mayBeAdded = Try(client.insert(key, columnParent, column, ConsistencyLevel.QUORUM))
+    mayBeAdded map {
+      u =>
+        log.debug("adding column")
+        GenericOpSuccess()
+    }
   }
 
-  private def getLockRow(path: Path, client: Cassandra.AsyncClient): Future[get_slice_call] = {
+  private def getLockRow(path: Path, client: Client): Try[java.util.List[ColumnOrSuperColumn]] = {
     val key = getPathKey(path)
     val columnParent = new ColumnParent(LOCK_COLUMN_FAMILY_NAME)
     val sliceRange = new SliceRange().setStart(Array[Byte]()).setFinish(Array[Byte]())
     val slicePredicate = new SlicePredicate().setColumn_names(null).setSlice_range(sliceRange)
 
-    val getRowFuture = AsyncUtil.executeAsync[get_slice_call](
-      client.get_slice(key, columnParent, slicePredicate, ConsistencyLevel.QUORUM, _))
-
-    log.debug("getting row")
-    getRowFuture
+    val mayBeRow = Try(client.get_slice(key, columnParent, slicePredicate, ConsistencyLevel.QUORUM))
+    mayBeRow
   }
 
   private def isCreator(processId: UUID, columns: java.util.List[ColumnOrSuperColumn]): Boolean = {
@@ -673,67 +536,48 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
     result
   }
 
-  def acquireFileLock(path: Path, processId: UUID): Future[Boolean] = executeWithClient({
+  def acquireFileLock(path: Path, processId: UUID): Boolean = executeWithClient({
     client =>
-      val prom = promise[Boolean]()
       log.debug("adding column for create lock")
-      val addColumnFuture = addLockColumn(path, processId, client)
-      addColumnFuture.onSuccess {
-        case res =>
+      val mayBeAddedColumn = addLockColumn(path, processId, client)
+      mayBeAddedColumn match {
+        case Success(s) =>
           log.debug("added column for create lock")
-          val getRowFuture = getLockRow(path, client)
+          val mayBeRow = getLockRow(path, client)
           log.debug("getting row for create lock")
-
-          getRowFuture.onSuccess {
-            case rowData =>
-              val result = isCreator(processId, rowData.getResult)
-              prom success result
+          mayBeRow match {
+            case Success(rowData) =>
+              isCreator(processId, rowData)
+            case Failure(e) =>
+              log.error(e, "failure in the fetching creator details to acquire lock for " + path)
+              throw e
           }
-
-          getRowFuture.onFailure {
-            case e =>
-              log.error(e, "error in getting row")
-              prom failure e
-          }
+        case Failure(e) =>
+          log.error(e, "failure in adding column to acquire lock for " + path)
+          throw e
       }
-
-      addColumnFuture.onFailure {
-        case e =>
-          log.error(e, "error in adding column for create lock")
-          prom failure e
-      }
-
-      prom.future
   })
 
-  private def deleteLockRow(path: Path, client: Cassandra.AsyncClient): Future[remove_call] = {
+  private def deleteLockRow(path: Path, client: Client): Try[Unit] = {
     val columnPath = new ColumnPath(LOCK_COLUMN_FAMILY_NAME)
     val timestamp = System.currentTimeMillis
 
-    val deleteLockFuture = AsyncUtil.executeAsync[remove_call](
-      client.remove(getPathKey(path), columnPath, timestamp, ConsistencyLevel.QUORUM, _))
+    val mayBeDeleted = Try(client.remove(getPathKey(path), columnPath, timestamp, ConsistencyLevel.QUORUM))
 
-    deleteLockFuture
+    mayBeDeleted
   }
 
-  def releaseFileLock(path: Path): Future[Boolean] = executeWithClient({
+  def releaseFileLock(path: Path): Boolean = executeWithClient({
     client =>
-      val prom = promise[Boolean]()
-      val deleteLockFuture = deleteLockRow(path, client)
-
-      deleteLockFuture.onSuccess {
-        case res =>
+      val mayBeDeletedLock = deleteLockRow(path, client)
+      mayBeDeletedLock match {
+        case Success(status) =>
           log.debug("deleted lock")
-          prom success true
+          true
+        case Failure(e) =>
+          log.debug("failed to delete lock for %s", path)
+          false
       }
-
-      deleteLockFuture.onFailure {
-        case e =>
-          log.error(e, "failed to delete lock")
-          prom success false
-      }
-
-      prom.future
   })
 
 }

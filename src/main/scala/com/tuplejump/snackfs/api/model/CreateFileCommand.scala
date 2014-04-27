@@ -18,8 +18,7 @@
  */
 package com.tuplejump.snackfs.api.model
 
-import scala.concurrent.Await
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Success}
 import java.io.IOException
 import org.apache.hadoop.fs.permission.FsPermission
 import com.tuplejump.snackfs.fs.model.{FileType, INode}
@@ -32,6 +31,8 @@ import org.apache.hadoop.fs.FileSystem.Statistics
 import com.twitter.logging.Logger
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
 import com.tuplejump.snackfs.api.partial.Command
+import com.tuplejump.snackfs.util.TryHelper
+import com.tuplejump.snackfs.cassandra.model.GenericOpSuccess
 
 object CreateFileCommand extends Command {
 
@@ -41,7 +42,6 @@ object CreateFileCommand extends Command {
             filePath: Path,
             filePermission: FsPermission,
             overwrite: Boolean,
-            bufferSize: Int,
             replication: Short,
             blockSize: Long,
             progress: Progressable,
@@ -50,11 +50,11 @@ object CreateFileCommand extends Command {
             subBlockSize: Long,
             atMost: FiniteDuration): FSDataOutputStream = {
 
-    val isCreatePossible = Await.result(store.acquireFileLock(filePath, processId), atMost)
+    val isCreatePossible = store.acquireFileLock(filePath, processId)
     if (isCreatePossible) {
 
       try {
-        val mayBeFile = Try(Await.result(store.retrieveINode(filePath), atMost))
+        val mayBeFile = store.retrieveINode(filePath)
         mayBeFile match {
 
           case Success(file: INode) =>
@@ -69,7 +69,7 @@ object CreateFileCommand extends Command {
               throw ex
             }
 
-          case Failure(e: Exception) =>
+          case Failure(e: Throwable) =>
             val parentPath = filePath.getParent
 
             if (parentPath != null) {
@@ -82,9 +82,9 @@ object CreateFileCommand extends Command {
         val permissions = FsPermission.getDefault
         val timestamp = System.currentTimeMillis()
         val iNode = INode(user, user, permissions, FileType.FILE, List(), timestamp)
-        Await.ready(store.storeINode(filePath, iNode), atMost)
+        TryHelper.handleFailure[(Path, INode), GenericOpSuccess]((store.storeINode _).tupled , (filePath, iNode))
 
-        val fileStream = new FileSystemOutputStream(store, filePath, blockSize, subBlockSize, bufferSize, atMost)
+        val fileStream = new FileSystemOutputStream(store, filePath, blockSize, subBlockSize, atMost)
         val fileDataStream = new FSDataOutputStream(fileStream, statistics)
 
         fileDataStream

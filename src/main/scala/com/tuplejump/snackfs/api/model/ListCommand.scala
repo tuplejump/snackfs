@@ -18,14 +18,14 @@
 package com.tuplejump.snackfs.api.model
 
 import scala.concurrent.duration.FiniteDuration
-import scala.util.{Failure, Success, Try}
-import scala.concurrent.Await
+import scala.util.{Failure, Success}
 import com.tuplejump.snackfs.fs.model.INode
 import java.io.FileNotFoundException
 import org.apache.hadoop.fs.{FileStatus, Path}
 import com.twitter.logging.Logger
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
 import com.tuplejump.snackfs.api.partial.Command
+import com.tuplejump.snackfs.util.TryHelper
 
 object ListCommand extends Command {
   private lazy val log = Logger.get(getClass)
@@ -36,7 +36,7 @@ object ListCommand extends Command {
 
     var result: Array[FileStatus] = Array()
     val absolutePath = path
-    val mayBeFile = Try(Await.result(store.retrieveINode(absolutePath), atMost))
+    val mayBeFile = store.retrieveINode(absolutePath)
 
     mayBeFile match {
       case Success(file: INode) =>
@@ -47,7 +47,7 @@ object ListCommand extends Command {
 
         } else {
           log.debug("fetching status for %s")
-          val subPaths = Await.result(store.fetchSubPaths(absolutePath, isDeepFetch = false), atMost)
+          val subPaths = TryHelper.handleFailure[(Path, Boolean), Set[Path]]((store.fetchSubPaths _).tupled, (absolutePath, false)).get
           result = subPaths.map(p => FileStatusCommand(store, p, atMost)).toArray
         }
 

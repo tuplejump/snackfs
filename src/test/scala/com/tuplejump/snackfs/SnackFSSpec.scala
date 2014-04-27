@@ -240,7 +240,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
   }
 
   it should "be able to get locations for all blocks in a file" in {
-    val path = new Path("/home/Downloads/testBlockLocations")
+    val path = new Path(basePath + "/home/Downloads/testBlockLocations")
     val fsData = fs.create(path)
 
     println("Generating test data, this may take a few minutes, please wait . . .")
