@@ -53,7 +53,7 @@ case class SnackFS() extends FileSystem {
     super.initialize(uri, configuration)
     setConf(configuration)
 
-    systemURI = URI.create(uri.getScheme + "://" + uri.getAuthority)
+    systemURI = if (uri.getAuthority != null) URI.create(uri.getScheme + "://" + uri.getAuthority) else URI.create(uri.getScheme + ":///")
 
     val directory = new Path("/user", System.getProperty("user.name"))
     currentDirectory = makeQualified(directory)
@@ -136,7 +136,7 @@ case class SnackFS() extends FileSystem {
 
   def getFileBlockLocations(path: Path, start: Long, len: Long): Array[BlockLocation] = {
     log.debug("fetching block locations for %s", path)
-    val mayBeBlocks = TryHelper.handleFailure[(Path),Map[BlockMeta, List[String]]](store.getBlockLocations,path)
+    val mayBeBlocks = TryHelper.handleFailure[(Path), Map[BlockMeta, List[String]]](store.getBlockLocations, path)
     val blocks: Map[BlockMeta, List[String]] = mayBeBlocks.get
     val locs = blocks.filterNot(x => x._1.offset + x._1.length < start)
     val locsMap = locs.map {
@@ -154,4 +154,36 @@ case class SnackFS() extends FileSystem {
   override def getFileBlockLocations(file: FileStatus, start: Long, len: Long): Array[BlockLocation] = {
     getFileBlockLocations(file.getPath, start, len)
   }
+
+  /**
+   * Very bad method!!!
+   * Checks if provided path structure conforms this FileSytem's path and throws exception if it doesn't.
+   * @param path
+   */
+  override def checkPath(path: Path) {
+    val thisUri = getUri
+    val pathUri = path.toUri
+    val thatScheme = pathUri.getScheme
+    val thatAuthority = pathUri.getAuthority
+
+    if (thatScheme == null) {
+      if (thatAuthority == null) {
+        if (!path.isAbsolute) {
+          throw new IllegalArgumentException("relative paths not allowed:" + path)
+        }
+      } else {
+        throw new IllegalArgumentException("Path without scheme with non-null authority:" + path)
+      }
+    } else {
+      val thisScheme: String = thisUri.getScheme
+      if (thisScheme.equalsIgnoreCase(thatScheme)) {
+        if (thisUri.getAuthority != null && pathUri.getAuthority == null) {
+          throw new IllegalArgumentException(s"FS Path has authority [${thisUri.getAuthority}] and provided path doesnt!")
+        }
+      } else {
+        throw new IllegalArgumentException(s"FS Path Schemes do not match! Default: [$thisScheme]  Requested: [$thatScheme]!")
+      }
+    }
+  }
+
 }

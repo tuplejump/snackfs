@@ -54,7 +54,8 @@ object SnackfsBuild extends Build {
   }
 
 
-  lazy val dependencies = Seq("org.apache.hadoop" % "hadoop-core" % "1.0.4" % "provided",
+  lazy val dependencies = Seq(
+    "org.apache.hadoop" % "hadoop-core" % "1.0.4" % "provided",
     "org.apache.cassandra" % "cassandra-thrift" % CAS_VERSION intransitive(),
     "org.apache.cassandra" % "cassandra-all" % CAS_VERSION intransitive(),
     "org.apache.thrift" % "libthrift" % THRIFT_VERSION exclude("org.slf4j", "slf4j-api") exclude("javax.servlet", "servlet-api"),
