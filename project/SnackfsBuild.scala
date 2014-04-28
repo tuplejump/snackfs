@@ -24,7 +24,7 @@ object SnackfsBuild extends Build {
 
   lazy val USE_CASV2 = System.getenv("USE_CASV2") != null && System.getenv("USE_CASV2").equalsIgnoreCase("true")
 
-  lazy val VERSION = "0.6.2-" + (if (USE_CASV2) "C2-EA" else "EA")
+  lazy val VERSION = "0.6.3-" + (if (USE_CASV2) "C2-EA" else "EA")
 
   lazy val CAS_VERSION = if (USE_CASV2) "2.0.5" else "1.2.12"
 
@@ -179,6 +179,7 @@ object SnackfsBuild extends Build {
       IO.copyFile(new File("src/main/scripts/snackfs"), shellBin)
       shellBin.setExecutable(true, false)
       IO.copyFile(new File("src/main/resources/core-site.xml"), new File(conf + "core-site.xml"))
+      IO.copyFile(new File("src/main/resources/hive-site.xml"), new File(conf + "hive-site.xml"))
 
       val jarFiles = IO.listFiles(new File(lib))
       val configFiles = IO.listFiles(new File(conf))
