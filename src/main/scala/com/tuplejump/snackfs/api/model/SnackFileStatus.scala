@@ -20,8 +20,9 @@ package com.tuplejump.snackfs.api.model
 
 import com.tuplejump.snackfs.fs.model.INode
 import org.apache.hadoop.fs.{FileStatus, Path}
+import com.tuplejump.snackfs.SnackFS
 
-case class SnackFileStatus(iNode: INode, path: Path) extends FileStatus(
+case class SnackFileStatus(iNode: INode, path: Path, fs: SnackFS) extends FileStatus(
   SnackFileStatusHelper.length(iNode), //length
   iNode.isDirectory, //isDir
   0, //block_replication
@@ -31,7 +32,7 @@ case class SnackFileStatus(iNode: INode, path: Path) extends FileStatus(
   iNode.permission,
   iNode.user,
   iNode.group,
-  path: Path)
+  path.makeQualified(fs))
 
 object SnackFileStatusHelper {
   def length(iNode: INode): Long = {

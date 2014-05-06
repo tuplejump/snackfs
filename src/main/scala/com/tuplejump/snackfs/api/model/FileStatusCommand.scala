@@ -26,19 +26,21 @@ import com.twitter.logging.Logger
 import org.apache.hadoop.fs.{FileStatus, Path}
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
 import com.tuplejump.snackfs.api.partial.Command
+import com.tuplejump.snackfs.SnackFS
 
 object FileStatusCommand extends Command {
   private lazy val log = Logger.get(getClass)
 
   def apply(store: FileSystemStore,
             filePath: Path,
-            atMost: FiniteDuration): FileStatus = {
+            atMost: FiniteDuration, fs: SnackFS): FileStatus = {
 
     log.debug("getting status for %s", filePath)
     val maybeFile = store.retrieveINode(filePath)
 
     maybeFile match {
-      case Success(file: INode) => SnackFileStatus(file, filePath)
+      case Success(file: INode) =>
+        SnackFileStatus(file, filePath, fs)
       case Failure(e) =>
         val ex = new FileNotFoundException("No such file exists")
         log.error(ex, "Failed to get status for %s as it doesn't exist", filePath)

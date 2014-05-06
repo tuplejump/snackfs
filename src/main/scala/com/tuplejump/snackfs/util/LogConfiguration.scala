@@ -19,10 +19,12 @@
 package com.tuplejump.snackfs.util
 
 import com.twitter.logging.{FileHandler, Level, LoggerFactory}
+import java.io.File
+import scala.util.{Failure, Success, Try}
 
 object LogConfiguration {
 
-  val level = System.getenv("SNACKFS_LOG_LEVEL") match {
+  lazy val level: Level = System.getenv("SNACKFS_LOG_LEVEL") match {
     case "DEBUG" => Level.DEBUG
     case "INFO" => Level.INFO
     case "ERROR" => Level.ERROR
@@ -30,6 +32,39 @@ object LogConfiguration {
     case "OFF" => Level.OFF
     case _ => Level.ERROR
   }
-  val config = new LoggerFactory("", Some(level), List(FileHandler("logs")), true)
 
+  lazy val logFile: String = {
+    var possibleLocs = List("/var/log/snackfs", "/tmp/log/snackfs", "snackfs.log")
+    var location: String = null
+
+    while (possibleLocs.size > 0 && location == null) {
+      val testLoc = possibleLocs.head
+      possibleLocs = possibleLocs.tail
+      if (isWritable(testLoc)) {
+        location = testLoc
+      }
+    }
+    println(s"Snackfs will write its log to ${location}. The log level is ${level}.")
+
+    location
+  }
+
+  val config = new LoggerFactory("", Some(level), List(FileHandler(logFile)), true)
+
+  private def isWritable(loc: String): Boolean = {
+    val file = new File(loc)
+
+    val fileCreated = Try {
+      file.getParentFile.mkdirs()
+      file.createNewFile()
+      file
+    }
+
+    fileCreated match {
+      case Success(f) =>
+        f.canWrite
+      case Failure(ex) =>
+        false
+    }
+  }
 }

@@ -18,7 +18,7 @@
  */
 package com.tuplejump.snackfs
 
-import java.net.URI
+import java.net.{InetAddress, Inet4Address, URI}
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
 import org.apache.hadoop.conf.Configuration
@@ -33,6 +33,8 @@ import com.tuplejump.snackfs.cassandra.store.ThriftStore
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
 import com.tuplejump.snackfs.cassandra.model.SnackFSConfiguration
 import com.tuplejump.snackfs.util.TryHelper
+import scala.util.{Try, Failure, Success}
+import sun.net.util.IPAddressUtil
 
 case class SnackFS() extends FileSystem {
 
@@ -63,13 +65,27 @@ case class SnackFS() extends FileSystem {
 
     store = new ThriftStore(customConfiguration)
     atMost = customConfiguration.atMost
-    store.createKeyspace
-    store.init
+    val initialized: Try[Unit] = Try {
+      store.createKeyspace.get
+      store.init
+      log.debug("creating base directory")
+      mkdirs(new Path("/"))
+      subBlockSize = customConfiguration.subBlockSize
+    }
 
-    log.debug("creating base directory")
-    mkdirs(new Path("/"))
+    initialized match {
+      case Success(_) =>
+        log.debug("Filesystem initialized")
+      case Failure(ex) =>
+        log.error( s"""Tried creating filesystem with Host: %s,
+             |Port: %s on
+             |System: %s""".stripMargin, customConfiguration.CassandraHost, customConfiguration.CassandraPort, InetAddress.getLocalHost)
 
-    subBlockSize = customConfiguration.subBlockSize
+        log.error(ex, "Failed to initialize File system store")
+
+    }
+
+
   }
 
   private def makeAbsolute(path: Path): Path = {
@@ -86,7 +102,7 @@ case class SnackFS() extends FileSystem {
 
   def open(path: Path, bufferSize: Int): FSDataInputStream = {
     //bufferSize can be ignored since we are providing configurable blockSize and subBlockSize
-    OpenFileCommand(store, path, atMost)
+    OpenFileCommand(store, makeAbsolute(path), atMost)
   }
 
   def mkdirs(path: Path, permission: FsPermission): Boolean = {
@@ -99,7 +115,7 @@ case class SnackFS() extends FileSystem {
              progress: Progressable): FSDataOutputStream = {
 
     //bufferSize can be ignored since we are providing configurable blockSize and subBlockSize
-    CreateFileCommand(store, filePath, permission, overwrite, replication,
+    CreateFileCommand(store, makeAbsolute(filePath), permission, overwrite, replication,
       blockSize, progress, processId, statistics, subBlockSize, atMost)
   }
 
@@ -108,16 +124,16 @@ case class SnackFS() extends FileSystem {
   }
 
   def append(path: Path, bufferSize: Int, progress: Progressable): FSDataOutputStream = {
-    AppendFileCommand(store, path, bufferSize, progress, atMost)
+    AppendFileCommand(store, makeAbsolute(path), bufferSize, progress, atMost)
   }
 
   def getFileStatus(path: Path): FileStatus = {
-    FileStatusCommand(store, path, atMost)
+    FileStatusCommand(store, makeAbsolute(path), atMost, this)
   }
 
   def delete(path: Path, isRecursive: Boolean): Boolean = {
     val absolutePath = makeAbsolute(path)
-    DeleteCommand(store, absolutePath, isRecursive, atMost)
+    DeleteCommand(store, absolutePath, isRecursive, atMost, this)
   }
 
   def rename(src: Path, dst: Path): Boolean = {
@@ -129,14 +145,15 @@ case class SnackFS() extends FileSystem {
 
   def listStatus(path: Path): Array[FileStatus] = {
     val absolutePath = makeAbsolute(path)
-    ListCommand(store, absolutePath, atMost)
+    ListCommand(store, absolutePath, atMost, this)
   }
 
-  def delete(p1: Path): Boolean = delete(p1, isRecursive = false)
+  def delete(p1: Path): Boolean = delete(makeAbsolute(p1), isRecursive = false)
 
   def getFileBlockLocations(path: Path, start: Long, len: Long): Array[BlockLocation] = {
-    log.debug("fetching block locations for %s", path)
-    val mayBeBlocks = TryHelper.handleFailure[(Path), Map[BlockMeta, List[String]]](store.getBlockLocations, path)
+    val absolute = makeAbsolute(path)
+    log.debug("fetching block locations for %s", absolute)
+    val mayBeBlocks = TryHelper.handleFailure[(Path), Map[BlockMeta, List[String]]](store.getBlockLocations, absolute)
     val blocks: Map[BlockMeta, List[String]] = mayBeBlocks.get
     val locs = blocks.filterNot(x => x._1.offset + x._1.length < start)
     val locsMap = locs.map {
@@ -148,6 +165,7 @@ case class SnackFS() extends FileSystem {
         bl.setLength(b.length)
         bl
     }
+    log.debug("got block location %s", locsMap)
     locsMap.toArray
   }
 

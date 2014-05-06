@@ -26,13 +26,14 @@ import com.twitter.logging.Logger
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
 import com.tuplejump.snackfs.api.partial.Command
 import com.tuplejump.snackfs.util.TryHelper
+import com.tuplejump.snackfs.SnackFS
 
 object ListCommand extends Command {
   private lazy val log = Logger.get(getClass)
 
   def apply(store: FileSystemStore,
             path: Path,
-            atMost: FiniteDuration): Array[FileStatus] = {
+            atMost: FiniteDuration, fs: SnackFS): Array[FileStatus] = {
 
     var result: Array[FileStatus] = Array()
     val absolutePath = path
@@ -42,13 +43,13 @@ object ListCommand extends Command {
       case Success(file: INode) =>
         if (file.isFile) {
           log.debug("fetching file status for %s")
-          val fileStatus = SnackFileStatus(file, absolutePath)
+          val fileStatus = SnackFileStatus(file, absolutePath, fs)
           result = Array(fileStatus)
 
         } else {
           log.debug("fetching status for %s")
           val subPaths = TryHelper.handleFailure[(Path, Boolean), Set[Path]]((store.fetchSubPaths _).tupled, (absolutePath, false)).get
-          result = subPaths.map(p => FileStatusCommand(store, p, atMost)).toArray
+          result = subPaths.map(p => FileStatusCommand(store, p, atMost, fs)).toArray
         }
 
       case Failure(e) =>

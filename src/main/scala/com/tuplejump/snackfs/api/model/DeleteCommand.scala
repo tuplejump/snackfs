@@ -27,6 +27,7 @@ import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
 import com.tuplejump.snackfs.api.partial.Command
 import com.tuplejump.snackfs.util.TryHelper
 import com.tuplejump.snackfs.cassandra.model.GenericOpSuccess
+import com.tuplejump.snackfs.SnackFS
 
 
 object DeleteCommand extends Command {
@@ -35,7 +36,7 @@ object DeleteCommand extends Command {
   def apply(store: FileSystemStore,
             srcPath: Path,
             isRecursive: Boolean,
-            atMost: FiniteDuration): Boolean = {
+            atMost: FiniteDuration, fs: SnackFS): Boolean = {
 
     val absolutePath = srcPath
     val mayBeSrc = store.retrieveINode(absolutePath)
@@ -50,7 +51,7 @@ object DeleteCommand extends Command {
           TryHelper.handleFailure[(INode), GenericOpSuccess](store.deleteBlocks, src)
 
         } else {
-          val contents = ListCommand(store, srcPath, atMost)
+          val contents = ListCommand(store, srcPath, atMost, fs)
 
           if (contents.length == 0) {
             log.debug("deleting directory %s", srcPath)
@@ -63,7 +64,7 @@ object DeleteCommand extends Command {
 
           } else {
             log.debug("deleting directory %s and all its contents", srcPath)
-            result = contents.map(p => DeleteCommand(store, p.getPath, isRecursive, atMost)).reduce(_ && _)
+            result = contents.map(p => DeleteCommand(store, p.getPath, isRecursive, atMost, fs)).reduce(_ && _)
             TryHelper.handleFailure[(Path), GenericOpSuccess](store.deleteINode, absolutePath)
           }
         }

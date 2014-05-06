@@ -203,8 +203,10 @@ class ThriftStore(configuration: SnackFSConfiguration) extends FileSystemStore {
 
     val createLock = createLockCF(LOCK_COLUMN_FAMILY_NAME, MIN_COMPACTION, MAX_COMPACTION)
 
-    val ksDef: KsDef = new KsDef(configuration.keySpace, configuration.replicationStrategy,
+    val ksDef: KsDef = new KsDef(configuration.keySpace,
+      configuration.replicationStrategy,
       List(inode, sblock, createLock))
+
     ksDef.setStrategy_options(Map("replication_factor" -> configuration.replicationFactor.toString))
 
     ksDef

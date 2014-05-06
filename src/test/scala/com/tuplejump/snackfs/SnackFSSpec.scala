@@ -105,7 +105,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     val status = fs.getFileStatus(path)
     !status.isDir must be(isTrue)
     status.getLen must be(12)
-    status.getPath must be(path)
+    status.getPath must be(path.makeQualified(fs))
   }
 
   /* it should "get file block locations" in {
