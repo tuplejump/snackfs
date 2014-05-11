@@ -273,7 +273,7 @@ class SnackFSShell extends FsShell {
     val srcFs: FileSystem = srcPath.getFileSystem(this.getConf)
     val srcs: Array[FileStatus] = srcFs.globStatus(srcPath)
     if (srcs == null || srcs.length == 0) {
-      throw new FileNotFoundException("Cannot access " + srcf + ": No such file or directory.")
+      throw new FileNotFoundException(s"File not found: $srcf")
     }
     val printHeader: Boolean = srcs.length == 1
     var numOfErrors: Int = 0

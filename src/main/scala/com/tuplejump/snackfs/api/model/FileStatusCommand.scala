@@ -42,7 +42,7 @@ object FileStatusCommand extends Command {
       case Success(file: INode) =>
         SnackFileStatus(file, filePath, fs)
       case Failure(e) =>
-        val ex = new FileNotFoundException("No such file exists")
+        val ex = new FileNotFoundException(s"File not found: $filePath")
         log.error(ex, "Failed to get status for %s as it doesn't exist", filePath)
         throw ex
     }

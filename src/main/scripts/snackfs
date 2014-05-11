@@ -21,7 +21,10 @@ if [ -z $JAVA_HOME ]; then
 fi    
 
 JAVA=$JAVA_HOME/bin/java
-JAVA_HEAP_MAX=-Xmx1000m
+
+if [ -z '$SNACKFS_JAVA_OPTS' ]; then
+    SNACKFS_JAVA_OPTS="-Xms1024m -Xmx1024m"
+fi
 
 CLASSPATH="${CONF_DIR}"
 CLASSPATH=${CLASSPATH}:$JAVA_HOME/lib/tools.jar
@@ -32,6 +35,6 @@ for f in $BASE/lib/*.jar; do
 done
 
 OPTS=""
-exec "$JAVA" -Dproc_$COMMAND $JAVA_HEAP_MAX $OPTS -classpath "$CLASSPATH" org.apache.hadoop.fs.SnackFSShell "$@"
+exec "$JAVA" -Dproc_$COMMAND $SNACKFS_JAVA_OPTS $OPTS -classpath "$CLASSPATH" org.apache.hadoop.fs.SnackFSShell "$@"
 
 

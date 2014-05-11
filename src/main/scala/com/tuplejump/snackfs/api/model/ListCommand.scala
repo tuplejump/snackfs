@@ -53,7 +53,7 @@ object ListCommand extends Command {
         }
 
       case Failure(e) =>
-        val ex = new FileNotFoundException("No such file exists")
+        val ex = new FileNotFoundException(s"File not found: $path")
         log.error(ex, "Failed to list status of %s as it doesn't exist", path)
         throw ex
     }

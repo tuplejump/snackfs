@@ -30,9 +30,9 @@ import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
 import com.twitter.logging.Logger
 import scala.concurrent.{Await, Future}
 import com.tuplejump.snackfs.cassandra.model.GenericOpSuccess
-import org.apache.cassandra.thrift.{TimedOutException, UnavailableException}
 import scala.concurrent.ExecutionContext.Implicits.global
 import com.tuplejump.snackfs.util.TryHelper
+import org.apache.cassandra.thrift.{UnavailableException, TimedOutException}
 
 
 case class FileSystemOutputStream(store: FileSystemStore, path: Path,
@@ -40,6 +40,8 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
                                   atMost: FiniteDuration) extends OutputStream {
 
   private lazy val log = Logger.get(getClass)
+
+  log.debug("Creating a new file: %s", path)
 
   private var isClosed: Boolean = false
 

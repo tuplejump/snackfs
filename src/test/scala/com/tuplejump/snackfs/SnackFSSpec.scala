@@ -173,18 +173,14 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     val exception1 = intercept[FileNotFoundException] {
       fs.getFileStatus(dirPath2)
     }
-    exception1.getMessage must be("No such file exists")
 
     val exception2 = intercept[FileNotFoundException] {
       fs.getFileStatus(filePath2)
     }
-    exception2.getMessage must be("No such file exists")
 
     val exception3 = intercept[FileNotFoundException] {
       fs.getFileStatus(baseDirPath)
     }
-    exception3.getMessage must be("No such file exists")
-
   }
 
   it should "rename a file" in {
