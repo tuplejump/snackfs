@@ -28,11 +28,11 @@ import scala.concurrent.duration._
 import com.tuplejump.snackfs.fs.model._
 import com.tuplejump.snackfs.cassandra.partial.FileSystemStore
 import com.twitter.logging.Logger
-import scala.concurrent.{Await, Future}
+import scala.concurrent.Future
 import com.tuplejump.snackfs.cassandra.model.GenericOpSuccess
 import scala.concurrent.ExecutionContext.Implicits.global
 import com.tuplejump.snackfs.util.TryHelper
-import org.apache.cassandra.thrift.{UnavailableException, TimedOutException}
+import org.apache.cassandra.thrift.UnavailableException
 
 
 case class FileSystemOutputStream(store: FileSystemStore, path: Path,
@@ -93,30 +93,9 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
     }
   }
 
-  private var subblocksWriteQueue = Vector.empty[Future[GenericOpSuccess]]
 
   private def storeSubblock(_blockId: UUID, _subBlockMeta: SubBlockMeta, _data: ByteBuffer) {
-    val f = Future {
-      TryHelper.handleFailure[(UUID, SubBlockMeta, ByteBuffer), GenericOpSuccess]((store.storeSubBlock _).tupled, (_blockId, _subBlockMeta, _data)).get
-    }
-
-    subblocksWriteQueue :+= f
-
-    def recover() {
-      Thread.sleep(atMost.toMillis)
-      storeSubblock(_blockId, _subBlockMeta, _data)
-    }
-
-    f recover {
-      case ue: UnavailableException =>
-        log.ifDebug(ue, "Will try ot recover")
-        recover()
-      case toe: TimedOutException =>
-        log.ifDebug(toe, "Will try ot recover")
-        recover()
-      case ex: Throwable =>
-        throw ex
-    }
+    TryHelper.handleFailure[(UUID, SubBlockMeta, ByteBuffer), GenericOpSuccess]((store.storeSubBlock _).tupled, (_blockId, _subBlockMeta, _data)).get
   }
 
 
@@ -127,7 +106,6 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
       outBuffer.limit(outBuffer.position).position(0)
       val bb = ByteBuffer.allocate(outBuffer.limit)
       bb.put(outBuffer)
-      //bb.put(outBuffer.array(), 0, outBuffer.limit)
 
       bb.rewind()
 
@@ -181,7 +159,6 @@ case class FileSystemOutputStream(store: FileSystemStore, path: Path,
       isClosing = true
       flush()
       storeINode()
-      Await.result(Future.sequence(subblocksWriteQueue), atMost * 5)
       super.close()
       isClosed = true
     }

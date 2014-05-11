@@ -198,7 +198,6 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     val exception2 = intercept[FileNotFoundException] {
       fs.getFileStatus(filePath1)
     }
-    exception2.getMessage must be("No such file exists")
 
     val fileStatus = fs.getFileStatus(filePath2)
     !fileStatus.isDir must be(isTrue)
@@ -241,7 +240,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
 
     println("Generating test data, this may take a few minutes, please wait . . .")
 
-    val fileSize = 254 * 1024 * 1024
+    val fileSize = 1024 * 1024 * 1024
     val iters = fileSize / 20000
     val strToWrite: String = RandomStringUtils.randomAscii(20000) + "\n"
 
@@ -257,7 +256,7 @@ class SnackFSSpec extends FlatSpec with BeforeAndAfterAll with MustMatchers {
     val status = fs.getFileStatus(path)
     val locations = fs.getFileBlockLocations(status, 0, status.getLen)
 
-    assert(locations.size === 2)
+    assert(locations.size === 9)
     locations.foreach {
       block =>
         block.getHosts.size must be(3)
