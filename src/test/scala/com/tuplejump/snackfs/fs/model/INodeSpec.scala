@@ -25,7 +25,7 @@ import org.apache.hadoop.fs.permission.FsPermission
 import org.scalatest.FlatSpec
 import java.io.ByteArrayInputStream
 
-class nINodeSpec extends FlatSpec {
+class INodeSpec extends FlatSpec {
 
   val timestamp = System.currentTimeMillis()
   val subBlocks = List(SubBlockMeta(UUID.randomUUID, 0, 128), SubBlockMeta(UUID.randomUUID, 128, 128))

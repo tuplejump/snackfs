@@ -22,13 +22,11 @@ import sbt.Keys._
 
 object SnackfsBuild extends Build {
 
-  lazy val USE_CASV2 = System.getenv("USE_CASV2") != null && System.getenv("USE_CASV2").equalsIgnoreCase("true")
+  lazy val VERSION = "0.6.4-C2-EA"
 
-  lazy val VERSION = "0.6.3-" + (if (USE_CASV2) "C2-EA" else "EA")
+  lazy val CAS_VERSION = "2.0.7"
 
-  lazy val CAS_VERSION = if (USE_CASV2) "2.0.7" else "1.2.12"
-
-  lazy val THRIFT_VERSION = if (USE_CASV2) "0.9.1" else "0.7.0"
+  lazy val THRIFT_VERSION = "0.9.1"
 
   lazy val TWITTER_UTIL_VERSION = "6.7.0"
 

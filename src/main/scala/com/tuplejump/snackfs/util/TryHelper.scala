@@ -13,14 +13,14 @@ object TryHelper {
         Thread.sleep(15)
         val retryCount = retries + 1
         if (retryCount >= 3) {
-          log.error("Function: %s failed for parameters: %s", fn, params)
+          log.error("Function: %s failed for parameters: %s", fn.toString, params.toString)
           log.error(x, "Failed after retrying for 3 times")
           throw x
         }
         else
           handleFailure(fn, params, retryCount)
       case y: Exception =>
-        log.error("Function: %s failed for parameters: %s", fn, params)
+        log.error("Function: %s failed for parameters: %s", fn.toString, params.toString)
         log.error(y, "Got an exception that could not be handled")
         throw y
     }
