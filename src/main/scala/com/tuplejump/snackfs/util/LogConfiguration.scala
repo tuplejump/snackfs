@@ -30,6 +30,6 @@ object LogConfiguration {
     case "OFF" => Level.OFF
     case _ => Level.ERROR
   }
-  val config = new LoggerFactory("", Some(level), List(FileHandler("logs")), true)
+  val config = new LoggerFactory("", Some(level), List(FileHandler("snackfs.log")), true)
 
 }
