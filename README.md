@@ -4,7 +4,7 @@
 # SnackFS
 
 SnackFS is our bite-sized, lightweight HDFS compatible FileSystem built over Cassandra.
-With it's unique fat driver design it requires no additional SysOps or setup on the Cassanndra Cluster. All you have to do is point to your Cassandra cluster and you are ready to go.
+With its unique fat driver design it requires no additional SysOps or setup on the Cassanndra Cluster. All you have to do is point to your Cassandra cluster and you are ready to go.
 
 As SnackFS was written as a dropin replacement for HDFS, your existing HDFS backed applications not only run as-is on SnackFS, but they also run faster!
 SnackFS cluster is also more resilient than a HDFS cluster as there is no SPOF like the NameNode.
